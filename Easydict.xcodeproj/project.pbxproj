@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AC23B10100000000000000BB /* QueryLanguageMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC23F10100000000000000AA /* QueryLanguageMigrationTests.swift */; };
 		AC22B10100000000000000BB /* PolishingLengthLimiterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC22F10100000000000000AA /* PolishingLengthLimiterTests.swift */; };
 		AC21B10100000000000000BB /* LocalStorageMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC21F10100000000000000AA /* LocalStorageMigrationTests.swift */; };
 		AC20B10100000000000000BB /* MenuBarClickRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC20F10100000000000000AA /* MenuBarClickRouter.swift */; };
@@ -433,6 +434,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		AC23F10100000000000000AA /* QueryLanguageMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryLanguageMigrationTests.swift; sourceTree = "<group>"; };
 		AC22F10100000000000000AA /* PolishingLengthLimiterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PolishingLengthLimiterTests.swift; sourceTree = "<group>"; };
 		AC21F10100000000000000AA /* LocalStorageMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStorageMigrationTests.swift; sourceTree = "<group>"; };
 		AC20F10100000000000000AA /* MenuBarClickRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarClickRouter.swift; sourceTree = "<group>"; };
@@ -2743,9 +2745,18 @@
 			path = EZWindowPatch;
 			sourceTree = "<group>";
 		};
+		AC23C10100000000000000CC /* Configuration */ = {
+			isa = PBXGroup;
+			children = (
+				AC23F10100000000000000AA /* QueryLanguageMigrationTests.swift */,
+			);
+			path = Configuration;
+			sourceTree = "<group>";
+		};
 		BE5912DE778CDCD8495CA4E5 /* Feature */ = {
 			isa = PBXGroup;
 			children = (
+				AC23C10100000000000000CC /* Configuration */,
 				02DEDC0420260430000000C1 /* Markdown */,
 			);
 			path = Feature;
@@ -3252,6 +3263,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AC23B10100000000000000BB /* QueryLanguageMigrationTests.swift in Sources */,
 				AC22B10100000000000000BB /* PolishingLengthLimiterTests.swift in Sources */,
 				AC21B10100000000000000BB /* LocalStorageMigrationTests.swift in Sources */,
 				02DEDC0420260430000000BE /* MarkdownRendererTests.swift in Sources */,

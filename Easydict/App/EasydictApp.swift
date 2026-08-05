@@ -16,6 +16,7 @@ import SwiftUI
 enum EasydictCmpatibilityEntry {
     static func main() {
         parseArmguments()
+        QueryLanguageMigration.restoreAutomaticPairIfNeeded()
 
         // Capturing crash logs must be placed first.
         AnalyticsService.setupCrashService()

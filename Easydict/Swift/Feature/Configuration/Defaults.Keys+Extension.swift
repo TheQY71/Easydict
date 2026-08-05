@@ -14,6 +14,28 @@ import Magnet
 extension Defaults.Keys {
     /// is first launch
     static let firstLaunch = Key<Bool>("EZConfiguration_kFirstLaunch", default: true)
+    static let restoredAutoQueryLanguages = Key<Bool>(
+        "EZConfiguration_kRestoredAutoQueryLanguagesV1",
+        default: false
+    )
+}
+
+// MARK: - QueryLanguageMigration
+
+/// Restores automatic target selection after adopting the release bundle ID.
+/// The old release domain may contain a fixed Simplified Chinese target that
+/// silently disables source-aware Chinese and non-Chinese translation.
+enum QueryLanguageMigration {
+    static func restoreAutomaticPairIfNeeded() {
+        guard !Defaults[.restoredAutoQueryLanguages] else { return }
+
+        if Defaults[.queryFromLanguage] == .auto,
+           Defaults[.queryToLanguage] == .simplifiedChinese {
+            Defaults[.queryToLanguage] = .auto
+        }
+
+        Defaults[.restoredAutoQueryLanguages] = true
+    }
 }
 
 // Setting
