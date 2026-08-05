@@ -51,17 +51,19 @@
     return [NSColor ez_queryTextDarkColor];
 }
 
-// Result view title bar color
+// Result view title bar color.
+// Kept clearly darker than the result body so the card header reads as a
+// distinct band; the old values differed by only ~5 gray levels.
 + (NSColor *)ez_titleBarBgLightColor {
-    return [NSColor mm_colorWithHexString:@"#F1F1F1"];
+    return [NSColor mm_colorWithHexString:@"#E9E9EB"];
 }
 + (NSColor *)ez_titleBarBgDarkColor {
-    return [NSColor mm_colorWithHexString:@"#2C2D2E"];
+    return [NSColor mm_colorWithHexString:@"#3E4044"];
 }
 
 // Result view background color
 + (NSColor *)ez_resultViewBgLightColor {
-    return [NSColor mm_colorWithHexString:@"#F6F6F6"];
+    return [NSColor mm_colorWithHexString:@"#F7F7F8"];
 }
 + (NSColor *)ez_resultViewBgDarkColor {
     return [NSColor ez_queryViewBgDarkColor];

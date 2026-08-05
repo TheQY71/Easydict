@@ -34,7 +34,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (nullable EZLanguageModel *)languageModelFromLanguage:(EZLanguage)language;
 
-/// Get target language with source language
+/// Get target language with source language.
+///
+/// Chinese variants (简体, 繁体, 文言文) are treated as one language when the
+/// first language is Chinese and the second one is not, so any Chinese text
+/// translates into the second language.
 - (EZLanguage)userTargetLanguageWithSourceLanguage:(EZLanguage)sourceLanguage;
 
 - (BOOL)containsEnglishInPreferredTwoLanguages;

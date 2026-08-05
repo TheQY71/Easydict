@@ -78,7 +78,6 @@ class MyConfiguration: NSObject {
     @DefaultsWrapper(.replaceNewlineWithSpace) var replaceNewlineWithSpace: Bool
     @DefaultsWrapper(.enableRemoveBooksExcerptInfo) var enableRemoveBooksExcerptInfo: Bool
 
-    @DefaultsWrapper(.autoQueryOCRText) var autoQueryOCRText: Bool
     @DefaultsWrapper(.autoQuerySelectedText) var autoQuerySelectedText: Bool
     @DefaultsWrapper(.autoQueryPastedText) var autoQueryPastedText: Bool
     @DefaultsWrapper(.autoQueryWhenTextChanged) var autoQueryWhenTextChanged: Bool
@@ -87,7 +86,6 @@ class MyConfiguration: NSObject {
     @DefaultsWrapper(.preferYoudaoTTSForEnglishWord) var preferYoudaoTTSForEnglishWord: Bool
 
     @DefaultsWrapper(.autoCopySelectedText) var autoCopySelectedText: Bool
-    @DefaultsWrapper(.autoCopyOCRText) var autoCopyOCRText: Bool
     @DefaultsWrapper(.autoCopyFirstTranslatedText) var autoCopyFirstTranslatedText: Bool
 
     @DefaultsWrapper(.showGoogleQuickLink) var showGoogleQuickLink: Bool
@@ -103,14 +101,11 @@ class MyConfiguration: NSObject {
     // Advanced Tab
     @DefaultsWrapper(.disableTipsView) var disableTipsView: Bool
     @DefaultsWrapper(.enableBetaFeature) private(set) var beta: Bool
-    @DefaultsWrapper(.enableYoudaoOCR) var enableYoudaoOCR: Bool
     @DefaultsWrapper(.enableCompatibilityReplace) var enableCompatibilityReplace: Bool
     @DefaultsWrapper(.forceGetSelectedTextType) var forceGetSelectedTextType:
         ForceGetSelectedTextType
 
     @DefaultsWrapper(.enableAppleOfflineTranslation) var enableAppleOfflineTranslation: Bool
-    @DefaultsWrapper(.enableOCRTextNormalization) var enableOCRTextNormalization: Bool
-    @DefaultsWrapper(.isScreenshotTipLayerHidden) var isScreenshotTipLayerHidden: Bool
     @DefaultsWrapper(.formerFixedScreenVisibleFrame) var formerFixedScreenVisibleFrame: CGRect
     @DefaultsWrapper(.formerMiniScreenVisibleFrame) var formerMiniScreenVisibleFrame: CGRect
 
@@ -127,7 +122,6 @@ class MyConfiguration: NSObject {
     @ShortcutWrapper(.appleDictionaryShortcut) var appleDictShortcutString: String
     @ShortcutWrapper(.eudicShortcut) var eudicDictShortcutString: String
 
-    let updater = GlobalContext.shared.updaterController.updater
     let fontSizes: [CGFloat] = [1, 1.1, 1.2, 1.3, 1.4]
     var disabledAutoSelect: Bool = false
     var isRecordingSelectTextShortcutKey: Bool = false
@@ -136,16 +130,6 @@ class MyConfiguration: NSObject {
     var fontSizeRatio: CGFloat {
         let safeIndex = max(0, min(Int(fontSizeIndex), fontSizes.count - 1))
         return fontSizes[safeIndex]
-    }
-
-    var automaticallyChecksForUpdates: Bool {
-        get {
-            updater.automaticallyChecksForUpdates
-        }
-        set {
-            updater.automaticallyChecksForUpdates = newValue
-            logSettings(["automatically_checks_for_updates": newValue])
-        }
     }
 
     var defaultTTSServiceType: ServiceType {
@@ -226,13 +210,6 @@ class MyConfiguration: NSObject {
             }
             .store(in: &cancellables)
 
-        Defaults.publisher(.autoQueryOCRText, options: [])
-            .removeDuplicates()
-            .sink { [weak self] _ in
-                self?.didSetAutoQueryOCRText()
-            }
-            .store(in: &cancellables)
-
         Defaults.publisher(.autoQuerySelectedText, options: [])
             .removeDuplicates()
             .sink { [weak self] _ in
@@ -265,13 +242,6 @@ class MyConfiguration: NSObject {
             .removeDuplicates()
             .sink { [weak self] _ in
                 self?.didSetAutoCopySelectedText()
-            }
-            .store(in: &cancellables)
-
-        Defaults.publisher(.autoCopyOCRText, options: [])
-            .removeDuplicates()
-            .sink { [weak self] _ in
-                self?.didSetAutoCopyOCRText()
             }
             .store(in: &cancellables)
 
@@ -449,10 +419,6 @@ extension MyConfiguration {
         logSettings(["click_query": clickQuery])
     }
 
-    fileprivate func didSetAutomaticallyChecksForUpdates() {
-        logSettings(["automatically_checks_for_updates": automaticallyChecksForUpdates])
-    }
-
     fileprivate func didSetHideMainWindow() {
         let windowManger = EZWindowManager.shared()
         windowManger.updatePopButtonQueryAction()
@@ -461,10 +427,6 @@ extension MyConfiguration {
         }
 
         logSettings(["hide_main_window": hideMainWindow])
-    }
-
-    fileprivate func didSetAutoQueryOCRText() {
-        logSettings(["auto_query_ocr_text": autoQueryOCRText])
     }
 
     fileprivate func didSetAutoQuerySelectedText() {
@@ -485,10 +447,6 @@ extension MyConfiguration {
 
     fileprivate func didSetAutoCopySelectedText() {
         logSettings(["auto_copy_selected_text": autoCopySelectedText])
-    }
-
-    fileprivate func didSetAutoCopyOCRText() {
-        logSettings(["auto_copy_ocr_text": autoCopyOCRText])
     }
 
     fileprivate func didSetAutoCopyFirstTranslatedText() {

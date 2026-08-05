@@ -17,19 +17,13 @@ import SFSafeSymbols
 public enum ShortcutAction: String, Identifiable, CaseIterable {
     // Global shortcuts
     case inputTranslate
-    case snipTranslate
     case selectTranslate
     case toggleAutoSelectText
     case showMiniWindow
     case pasteboardTranslate
     case polishAndReplace
     case translateAndReplace
-    case silentScreenshotOCR
-
-    // OCR specific shortcuts
-    case screenshotOCR
-    case pasteboardOCR
-    case showOCRWindow
+    case quickChat
 
     // In App shortcuts
     case clearInput
@@ -57,17 +51,13 @@ extension ShortcutAction {
     /// All global shortcut actions (system-wide hotkeys)
     static let globalActions: [ShortcutAction] = [
         .inputTranslate,
-        .snipTranslate,
         .selectTranslate,
         .toggleAutoSelectText,
         .showMiniWindow,
         .pasteboardTranslate,
         .polishAndReplace,
         .translateAndReplace,
-        .silentScreenshotOCR,
-        .screenshotOCR,
-        .pasteboardOCR,
-        .showOCRWindow,
+        .quickChat,
     ]
 
     /// All app-specific shortcut actions (only active when app is focused)
@@ -127,12 +117,6 @@ extension ShortcutAction {
                 defaultsKey: .inputShortcut,
                 action: { windowManager.inputTranslate() }
             ),
-            .snipTranslate: .init(
-                titleKey: "menu_screenshot_Translate",
-                icon: .cameraViewfinder,
-                defaultsKey: .snipShortcut,
-                action: { windowManager.snipTranslate() }
-            ),
             .selectTranslate: .init(
                 titleKey: "menu_selectWord_Translate",
                 icon: .highlighter,
@@ -155,12 +139,6 @@ extension ShortcutAction {
                     EZToast.showText(message)
                 }
             ),
-            .silentScreenshotOCR: .init(
-                titleKey: "menu_silent_screenshot_OCR",
-                icon: .cameraMeteringSpot,
-                defaultsKey: .silentScreenshotOCRShortcut,
-                action: { windowManager.silentScreenshotOCR() }
-            ),
             .pasteboardTranslate: .init(
                 titleKey: "menu_pasteboard_translate",
                 icon: .docOnClipboard,
@@ -179,31 +157,17 @@ extension ShortcutAction {
                 defaultsKey: .translateAndReplaceShortcut,
                 action: { await ActionManager.shared.translateAndReplace() }
             ),
+            .quickChat: .init(
+                titleKey: "menu_quick_chat",
+                icon: .bubbleLeftAndBubbleRight,
+                defaultsKey: .quickChatShortcut,
+                action: { QuickChatWindowController.shared.toggle() }
+            ),
             .showMiniWindow: .init(
                 titleKey: "menu_show_mini_window",
                 icon: .dockRectangle,
                 defaultsKey: .showMiniWindowShortcut,
                 action: { windowManager.showMiniFloatingWindow() }
-            ),
-
-            // OCR specific shortcuts
-            .screenshotOCR: .init(
-                titleKey: "menu_screenshot_OCR",
-                icon: .cameraMeteringMultispot,
-                defaultsKey: .screenshotOCRShortcut,
-                action: { windowManager.screenshotOCR() }
-            ),
-            .pasteboardOCR: .init(
-                titleKey: "menu_pasteboard_OCR",
-                icon: .listClipboard,
-                defaultsKey: .pasteboardOCRShortcut,
-                action: { AppleOCREngine().pasteboardOCR() }
-            ),
-            .showOCRWindow: .init(
-                titleKey: "menu_show_ocr_window",
-                icon: .textAndCommandMacwindow,
-                defaultsKey: .showOCRWindowShortcut,
-                action: { OCRWindowManager.shared.showWindow() }
             ),
 
             // In App shortcuts
@@ -265,7 +229,7 @@ extension ShortcutAction {
                 titleKey: "hide",
                 icon: .eyeSlash,
                 defaultsKey: .hideShortcut,
-                action: { windowManager.closeWindowOrExitSreenshot() }
+                action: { windowManager.closeFloatingWindow() }
             ),
             .increaseFontSize: .init(
                 titleKey: "shortcut_increase_font",

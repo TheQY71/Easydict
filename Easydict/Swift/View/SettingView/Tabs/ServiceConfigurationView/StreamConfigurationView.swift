@@ -117,7 +117,7 @@ struct StreamConfigurationView: View {
             }
 
             if showSupportedModelsSection {
-                VStack(alignment: .trailing, spacing: 0) {
+                VStack(alignment: .trailing, spacing: 6) {
                     TextEditorCell(
                         titleKey: "service.configuration.custom_openai.supported_models.title",
                         storedValueKey: service.supportedModelsKey,
@@ -135,7 +135,6 @@ struct StreamConfigurationView: View {
                         }
                         .disabled(isFetchModelsDisabled)
                         .help(Text(fetchModelsHelp))
-                        .padding(.trailing, 10)
                     }
                 }
             }

@@ -248,33 +248,6 @@ final class BaiduService: QueryService {
         return super.getTTSLanguageCode(language, accent: accent)
     }
 
-    // MARK: - OCR
-
-    override func ocr(
-        _ image: NSImage,
-        from: Language,
-        to: Language
-    ) async throws
-        -> EZOCRResult? {
-        try await performBaiduOCR(image, from: from, to: to)
-    }
-
-    override func ocrAndTranslate(
-        _ image: NSImage,
-        from: Language,
-        to: Language,
-        ocrSuccess: @escaping (EZOCRResult, Bool) -> ()
-    ) async throws
-        -> (EZOCRResult?, QueryResult?) {
-        guard let ocrResult = try await ocr(image, from: from, to: to) else {
-            return (nil, nil)
-        }
-
-        ocrSuccess(ocrResult, true)
-        let result = try await translate(ocrResult.mergedText, from: from, to: to)
-        return (ocrResult, result)
-    }
-
     /// Detect language for Objective-C callers without creating nested async tasks.
     override func detectText(
         _ text: String,

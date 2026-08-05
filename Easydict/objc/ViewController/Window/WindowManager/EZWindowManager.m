@@ -264,28 +264,6 @@ static EZWindowManager *_instance;
 
 #pragma mark - Show Floating Window
 
-/// Show floating window with OCR image, auto query or not.
-- (void)showFloatingWindowWithOCRImage:(NSImage *)image
-                             autoQuery:(BOOL)autoQuery
-                            actionType:(EZActionType)actionType {
-    if (!image) {
-        MMLogWarn(@"Image is nil, cannot show OCR window");
-        return;
-    }
-
-    MMLogInfo(@"Show window with OCR image");
-
-    EZWindowType windowType = MyConfiguration.shared.shortcutSelectTranslateWindowType;
-    EZBaseQueryWindow *window = [self windowWithType:windowType];
-
-    // Reset window height first, avoid being affected by previous window height.
-    [window.queryViewController resetTableView:^{
-        self.actionType = actionType;
-        [self showFloatingWindowType:windowType queryText:nil];
-        [window.queryViewController startOCRImage:image actionType:actionType autoQuery:autoQuery];
-    }];
-}
-
 /// Show floating window.
 - (void)showFloatingWindowType:(EZWindowType)windowType queryText:(nullable NSString *)queryText {
     [self showFloatingWindowType:windowType queryText:queryText actionType:self.actionType];
@@ -489,10 +467,6 @@ static EZWindowManager *_instance;
     [EZPopButtonWindow.shared close];
     
     [self saveFrontmostApplication];
-
-    if (Screenshot.shared.isTakingScreenshot) {
-        return;
-    }
 
     [[self currentShowingSettingsWindow] close];
 
@@ -795,9 +769,6 @@ static EZWindowManager *_instance;
     }
 
     [self saveFrontmostApplication];
-    if (Screenshot.shared.isTakingScreenshot) {
-        return;
-    }
 
     EZWindowType windowType = MyConfiguration.shared.shortcutSelectTranslateWindowType;
     MMLogInfo(@"selectTextTranslate windowType: %@", @(windowType));
@@ -817,9 +788,6 @@ static EZWindowManager *_instance;
     MMLogInfo(@"inputTranslate");
 
     [self saveFrontmostApplication];
-    if (Screenshot.shared.isTakingScreenshot) {
-        return;
-    }
 
     EZWindowType windowType = MyConfiguration.shared.shortcutSelectTranslateWindowType;
 
@@ -852,118 +820,22 @@ static EZWindowManager *_instance;
     [self showFloatingWindowType:windowType queryText:nil];
 }
 
-- (void)snipTranslate {
-    MMLogInfo(@"snipTranslate");
-
-    // Close non-main floating window if not pinned. Fix https://github.com/tisfeng/Easydict/issues/126
-    [self closeFloatingWindowIfNotPinnedOrMain];
-
-    [self captureWithRestorePreviousApp:NO completion:^(NSImage *_Nullable image) {
-        BOOL autoQuery = [MyConfiguration.shared autoQueryOCRText];
-        [self showFloatingWindowWithOCRImage:image autoQuery:autoQuery actionType:EZActionTypeOCRQuery];
-    }];
-}
-
-/// Silent screenshot and OCR, without showing floating window.
-- (void)silentScreenshotOCR {
-    MMLogInfo(@"Silent screenshot and OCR");
-
-    [self captureWithRestorePreviousApp:YES completion:^(NSImage *_Nullable image) {
-        if (!image) {
-            return;
-        }
-
-        self.actionType = EZActionTypeScreenshotOCR;
-        EZBaseQueryViewController *viewController = self.backgroundQueryViewController;
-        [viewController resetQueryModelForBackgroundOCR];
-        [viewController startOCRImage:image actionType:self.actionType autoQuery:NO];
-    }];
-}
-
-- (void)screenshotOCR {
-    MMLogInfo(@"Screenshot OCR");
-
-    [self captureWithRestorePreviousApp:YES completion:^(NSImage *_Nullable image) {
-        if (!image) {
-            MMLogWarn(@"Screenshot OCR skipped: captured image is nil");
-            return;
-        }
-        AppleOCREngine *appleOCREngine = [AppleOCREngine new];
-        [appleOCREngine showOCRWindowWithImage:image language:EZLanguageAuto completionHandler:^(NSError *error) {
-            if (error) {
-                MMLogError(@"OCR Preview failed: %@", error.localizedDescription);
-            }
-        }];
-    }];
-}
-
-/// Translate text from pasteboard, support both image and text.
+/// Translate text from pasteboard.
 - (void)pasteboardTranslate:(EZWindowType)windowType {
     MMLogInfo(@"Pasteboard Translate with windowType: %@", @(windowType));
 
     self.actionType = EZActionTypePasteboardTranslate;
     BOOL autoQuery = [MyConfiguration.shared autoQueryPastedText];
 
-    // Try to read image from pasteboard first.
-    NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
-    NSImage *image = pasteboard.image;
-    if (image) {
-        [self showFloatingWindowWithOCRImage:image autoQuery:autoQuery actionType:self.actionType];
-        return;
-    }
-
-    // If no image, read string from pasteboard.
-    NSString *queryText = pasteboard.string;
+    NSString *queryText = NSPasteboard.generalPasteboard.string;
     if (queryText.length > 0) {
         [self showFloatingWindowType:windowType queryText:queryText autoQuery:autoQuery actionType:self.actionType];
     }
 }
 
-/**
- * Capture screenshot with options for app restoration
- * @param restorePreviousApp Whether to restore the previous application after capture
- * @param imageHandler Block to handle the captured image
- */
-- (void)captureWithRestorePreviousApp:(BOOL)restorePreviousApp
-                           completion:(void (^)(NSImage *_Nullable image))imageHandler {
-    MMLogInfo(@"Starting capture");
-
-    [self saveFrontmostApplication];
-
-    if (Screenshot.shared.isTakingScreenshot) {
-        MMLogWarn(@"Already snapshotting, ignoring request");
-        return;
-    }
-
-    // Set whether to restore previous app
-    Screenshot.shared.shouldRestorePreviousApp = restorePreviousApp;
-
-    void (^captureCompletion)(NSImage *_Nullable) = ^(NSImage *_Nullable image) {
-        if (!image) {
-            MMLogWarn(@"Failed to capture screenshot");
-            if (imageHandler) {
-                imageHandler(nil);
-            }
-            return;
-        }
-
-        MMLogInfo(@"Screenshot captured: %@", image);
-
-        if (imageHandler) {
-            imageHandler(image);
-        }
-    };
-
-    [Screenshot.shared startCaptureWithCompletion:captureCompletion];
-}
-
 #pragma mark - Application Shortcut
 
 - (void)rerty {
-    if (Screenshot.shared.isTakingScreenshot) {
-        return;
-    }
-
     if ([[NSApplication sharedApplication] keyWindow] == self.floatingWindow) {
         [self.floatingWindow.queryViewController retryQueryWithLanguage:EZLanguageAuto];
     }
@@ -996,15 +868,6 @@ static EZWindowManager *_instance;
     queryWindow.pin = !queryWindow.pin;
 }
 
-- (void)closeWindowOrExitSreenshot {
-    MMLogInfo(@"Close window, or exit screenshot");
-
-    if (Screenshot.shared.isTakingScreenshot) {
-        [Screenshot.shared finishCapture:nil];
-    } else {
-        [self closeFloatingWindow];
-    }
-}
 
 - (void)toggleTranslationLanguages {
     [self.floatingWindow.queryViewController toggleTranslationLanguages];

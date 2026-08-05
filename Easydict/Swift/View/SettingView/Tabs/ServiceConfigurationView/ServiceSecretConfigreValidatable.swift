@@ -55,14 +55,12 @@ protocol ServiceConfigRemovable {
 
 extension QueryService: ServiceConfigRemovable {
     func remove() {
-        for winType in [EZWindowType.fixed, EZWindowType.main, EZWindowType.mini] {
-            LocalStorage.shared().removeServiceType(
-                serviceTypeWithUniqueIdentifier(),
-                windowType: winType,
-                allowRemovingLast: true
-            )
-            NotificationCenter.default.postServiceUpdateNotification(windowType: winType)
-        }
+        LocalStorage.shared().removeServiceType(
+            serviceTypeWithUniqueIdentifier(),
+            windowType: .fixed,
+            allowRemovingLast: true
+        )
+        NotificationCenter.default.postServiceUpdateNotification()
         GlobalContext.shared.reloadLLMServicesSubscribers()
     }
 }

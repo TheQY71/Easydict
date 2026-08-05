@@ -19,16 +19,11 @@ func routes(_ app: Application) throws {
     /// Translate text
     app.post("translate") { req async throws -> TranslationResponse in
         let request = try req.content.decode(TranslationRequest.self)
-        let appleDictionaryNames = request.appleDictionaryNames
 
         guard let service = QueryServiceFactory.shared.service(withTypeId: request.serviceType) else {
             throw QueryError(
                 type: .unsupportedServiceType, message: "\(request.serviceType)"
             )
-        }
-
-        if let appleDictionary = service as? AppleDictionary, let appleDictionaryNames {
-            appleDictionary.appleDictionaryNames = appleDictionaryNames
         }
 
         // Reject `/translate` only when the current transport is actually streaming.
@@ -57,10 +52,6 @@ func routes(_ app: Application) throws {
             } catch {
                 print("Decode DictionaryEntry failed: \(error)")
             }
-        }
-
-        if service is AppleDictionary {
-            response.HTMLStrings = result.htmlStrings
         }
 
         return response
@@ -107,28 +98,6 @@ func routes(_ app: Application) throws {
         return Response(
             headers: headers,
             body: .init(asyncStream: asyncBodyStream)
-        )
-    }
-
-    /// OCR image data up to 10MB. https://docs.vapor.codes/basics/routing/
-    app.on(.POST, "ocr", body: .collect(maxSize: "10mb")) { req async throws -> OCRResponse in
-        let request = try req.content.decode(OCRRequest.self)
-
-        let queryModel = QueryModel()
-        queryModel.ocrImage = NSImage(data: request.imageData)
-
-        var from = Language.auto
-        if let sourceLanguage = request.sourceLanguage {
-            from = Language.language(fromCode: sourceLanguage)
-        }
-        queryModel.userSourceLanguage = from
-
-        let detectManager = DetectManager(model: queryModel)
-        let result = try await detectManager.ocr()
-
-        return OCRResponse(
-            ocrText: result.mergedText,
-            sourceLanguage: result.from.code
         )
     }
 

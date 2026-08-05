@@ -6,6 +6,7 @@
 //  Copyright © 2024 izual. All rights reserved.
 //
 
+import SFSafeSymbols
 import SwiftUI
 
 // MARK: - SecureTextField
@@ -35,10 +36,11 @@ struct SecureTextField: View {
             Button(action: {
                 showText.toggle()
             }) {
-                Image(systemName: showText ? "eye.slash.fill" : "eye.fill")
+                Image(systemSymbol: showText ? .eyeSlashFill : .eyeFill)
+                    .foregroundStyle(.secondary)
             }
+            .buttonStyle(.borderless)
         }
-        .padding(10)
         .onChange(of: focus) { newValue in
             // if the PasswordField is focused externally, then make sure the correct field is actually focused
             if newValue != nil {

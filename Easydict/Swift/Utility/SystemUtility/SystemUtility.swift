@@ -80,7 +80,13 @@ class SystemUtility: NSObject {
             } else if strategies.contains(.shortcut) {
                 await insertTextByShortcut(text)
             } else if strategies.contains(.accessibility) {
-                insertTextByAX(text)
+                if !insertTextByAX(text) {
+                    // The app accepted the Accessibility write without applying it,
+                    // which is normal for Electron-based apps. Pasting still works
+                    // there, and restores the pasteboard afterwards.
+                    logInfo("AX insert had no effect, falling back to paste")
+                    await insertTextByShortcut(text)
+                }
             }
         }
 

@@ -21,18 +21,6 @@ extension BuiltInAIService {
     }
 }
 
-extension CaiyunService {
-    var caiyunToken: String {
-        APIKey.caiyunToken.stringValue
-    }
-}
-
-extension NiuTransService {
-    @objc var niutransAPIKey: String {
-        APIKey.niutransAPIKey.stringValue
-    }
-}
-
 // MARK: - APIKey
 
 enum APIKey: String {

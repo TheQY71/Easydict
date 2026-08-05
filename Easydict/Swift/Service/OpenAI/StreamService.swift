@@ -204,6 +204,13 @@ public class StreamService: QueryService {
 
     var hideThinkTagContent: Bool = true
 
+    /// Replaces the messages sent for the next request, bypassing translation prompt building.
+    ///
+    /// Quick chat sets this so a raw question reaches the model instead of a translation
+    /// instruction. Every stream service builds its request through `chatMessageDicts`,
+    /// so one override covers all providers. `nil` keeps normal translation behavior.
+    var chatMessagesOverride: [ChatMessage]?
+
     /// Whether requests currently use streaming transport over the network.
     ///
     /// This is intentionally narrower than `isStream()`: a service may remain stream-capable
@@ -466,6 +473,9 @@ public class StreamService: QueryService {
     /// Base on chat query, convert prompt dict to LLM service prompt model.
     /// If enableCustomPrompt is true, we will use custom prompt, otherwise use system prompt.
     func chatMessageDicts(_ chatQuery: ChatQueryParam) -> [ChatMessage] {
+        if let chatMessagesOverride {
+            return chatMessagesOverride
+        }
         if enableCustomPrompt {
             var chatMessages: [ChatMessage] = []
             let systemPrompt = replaceCustomPromptWithVariable(systemPrompt)

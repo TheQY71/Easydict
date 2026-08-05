@@ -152,33 +152,6 @@ class YoudaoService: QueryService {
         return super.getTTSLanguageCode(language, accent: accent)
     }
 
-    /// Perform OCR using Youdao service.
-    override func ocr(
-        _ image: NSImage,
-        from: Language,
-        to: Language
-    ) async throws
-        -> EZOCRResult? {
-        try await ocr(image: image, from: from, to: to)
-    }
-
-    /// Perform OCR and translation using Youdao service.
-    override func ocrAndTranslate(
-        _ image: NSImage,
-        from: Language,
-        to: Language,
-        ocrSuccess: @escaping (EZOCRResult, Bool) -> ()
-    ) async throws
-        -> (EZOCRResult?, QueryResult?) {
-        let result = try await ocrAndTranslate(
-            image: image,
-            from: from,
-            to: to,
-            ocrSuccess: ocrSuccess
-        )
-        return (result.ocrResult, result.queryResult)
-    }
-
     // MARK: Private
 
     /// Follows the Youdao web translation API used by this service.

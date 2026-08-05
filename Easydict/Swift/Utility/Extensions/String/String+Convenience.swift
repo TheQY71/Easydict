@@ -13,6 +13,63 @@ import Foundation
 // MARK: - Swift API
 
 extension String {
+    /// Count the number of English words in the text string.
+    var englishWordCount: Int {
+        wordComponents.filter { $0.removingNonLetters().isEnglishText }.count
+    }
+
+    /// Splits the string into word components, preserving the original order of appearance.
+    ///
+    /// - Chinese characters are treated as individual words.
+    /// - Non-Chinese characters (e.g., English words or numbers) are grouped together
+    ///   until a character of a different type or a separator is encountered.
+    /// - Whitespace and most punctuation marks act as separators and are excluded.
+    ///
+    /// - Examples:
+    ///   - `"Hello, world!"` → `["Hello", "world"]`
+    ///   - `"scpl.example.com"` → `["scpl.example.com"]`
+    ///   - `"包括Google翻译"` → `["包", "括", "Google", "翻", "译"]`
+    var wordComponents: [String] {
+        var separatorSet = CharacterSet.whitespacesAndNewlines
+        separatorSet.formUnion(.punctuationCharacters)
+
+        // Exclude specific characters that are considered as a part of the word
+        separatorSet.remove(charactersIn: "@#/•\"-.")
+
+        var components: [String] = []
+        var currentWord = ""
+
+        for char in self {
+            let str = String(char)
+            guard let scalar = str.unicodeScalars.first else { continue }
+
+            if separatorSet.contains(scalar) {
+                if !currentWord.isEmpty {
+                    components.append(currentWord)
+                    currentWord = ""
+                }
+                continue
+            }
+
+            if str.isChineseTextByRegex {
+                // Each Chinese character is a separate word, so flush any pending word.
+                if !currentWord.isEmpty {
+                    components.append(currentWord)
+                    currentWord = ""
+                }
+                components.append(str)
+            } else {
+                currentWord.append(char)
+            }
+        }
+
+        if !currentWord.isEmpty {
+            components.append(currentWord)
+        }
+
+        return components
+    }
+
     /// Trim newline characters only.
     func trimNewLine() -> String {
         trimmingCharacters(in: .newlines)

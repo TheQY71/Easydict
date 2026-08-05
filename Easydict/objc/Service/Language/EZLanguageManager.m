@@ -210,15 +210,30 @@ static EZLanguageManager *_instance;
 - (EZLanguage)userTargetLanguageWithSourceLanguage:(EZLanguage)sourceLanguage {
     EZLanguage firstLanguage = [self userFirstLanguage];
     EZLanguage secondLanguage = [self userSecondLanguage];
-    EZLanguage targetLanguage = firstLanguage;
-    if ([sourceLanguage isEqualToString:firstLanguage]) {
-        targetLanguage = secondLanguage;
+
+    BOOL sourceIsFirstLanguage = [sourceLanguage isEqualToString:firstLanguage];
+
+    /**
+     Traditional and classical Chinese should also translate into the second
+     language when the first language is Chinese, so selecting 繁体 or 文言文
+     text behaves the same as selecting 简体中文.
+
+     Skip the grouping when the second language is Chinese too, otherwise a
+     user who deliberately set 简体 <-> 繁体 would lose that conversion.
+     */
+    if (!sourceIsFirstLanguage &&
+        [self isChineseLanguage:sourceLanguage] &&
+        [self isChineseLanguage:firstLanguage] &&
+        ![self isChineseLanguage:secondLanguage]) {
+        sourceIsFirstLanguage = YES;
     }
-    
+
+    EZLanguage targetLanguage = sourceIsFirstLanguage ? secondLanguage : firstLanguage;
+
     if ([targetLanguage isEqualToString:sourceLanguage]) {
         targetLanguage = [self autoTargetLanguageWithSourceLanguage:sourceLanguage];
     }
-    
+
     return targetLanguage;
 }
 

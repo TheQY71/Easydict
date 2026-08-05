@@ -34,7 +34,6 @@ open class QueryModel: NSObject, NSCopying {
         model.userSourceLanguage = userSourceLanguage
         model.userTargetLanguage = userTargetLanguage
         model.detectedLanguage = detectedLanguage
-        model.ocrImage = ocrImage
         model.queryViewHeight = queryViewHeight
         model.audioURL = audioURL
         model.needDetectLanguage = needDetectLanguage
@@ -56,9 +55,6 @@ open class QueryModel: NSObject, NSCopying {
     /// User selected target language.
     var userTargetLanguage: Language = .auto
 
-    /// OCR confidence for the last OCR result.
-    var ocrConfidence: CGFloat = 0
-
     /// Language detection confidence for the last detection result.
     var detectConfidence: CGFloat = 0
 
@@ -68,9 +64,6 @@ open class QueryModel: NSObject, NSCopying {
     /// Mapping from query text to a specified language.
     var specifiedTextLanguageDict: NSMutableDictionary = .init()
 
-    /// OCR image for the current query.
-    var ocrImage: NSImage?
-
     /// Audio URL generated for the current query.
     var audioURL: String?
 
@@ -79,6 +72,9 @@ open class QueryModel: NSObject, NSCopying {
 
     /// Whether to auto query after updating the model.
     var autoQuery: Bool = true
+
+    /// Action type that triggers the query.
+    var actionType: ActionType = .none
 
     /// User selected source language.
     var userSourceLanguage: Language = .auto {
@@ -104,19 +100,6 @@ open class QueryModel: NSObject, NSCopying {
             if queryText.isEmpty {
                 detectedLanguageStorage = .auto
                 showAutoLanguage = false
-            }
-        }
-    }
-
-    /// Action type that triggers the query.
-    var actionType: ActionType = .none {
-        didSet {
-            let isOCRAction = actionType == .ocrQuery
-                || actionType == .screenshotOCR
-                || actionType == .pasteboardOCR
-                || actionType == .none
-            if !isOCRAction {
-                ocrImage = nil
             }
         }
     }

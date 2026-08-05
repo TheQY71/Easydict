@@ -103,7 +103,7 @@
         button.backgroundHoverColor = [NSColor mm_colorWithHexString:@"#D2D2D2"];
         button.backgroundHighlightColor = [NSColor mm_colorWithHexString:@"#B4B4B4"];
     } dark:^(EZButton *button) {
-        button.titleColor = [NSColor mm_colorWithHexString:@"#6D6D6D"];
+        button.titleColor = [NSColor mm_colorWithHexString:@"#9E9E9E"];
         button.backgroundColor = [NSColor mm_colorWithHexString:@"#202020"];
         button.backgroundHoverColor = [NSColor mm_colorWithHexString:@"#3D3D3D"];
         button.backgroundHighlightColor = [NSColor mm_colorWithHexString:@"#585A5C"];
@@ -189,18 +189,18 @@
     }];
     
     [self.serviceIcon mas_makeConstraints:^(MASConstraintMaker *make) {
-        make.left.equalTo(self.topBarView).offset(8);
+        make.left.equalTo(self.topBarView).offset(10);
         make.centerY.equalTo(self.topBarView);
         make.size.mas_equalTo(iconSize);
     }];
     
     [self.serviceNameLabel mas_makeConstraints:^(MASConstraintMaker *make) {
-        make.left.equalTo(self.serviceIcon.mas_right).offset(2);
+        make.left.equalTo(self.serviceIcon.mas_right).offset(6);
         make.centerY.equalTo(self.topBarView).offset(0);
     }];
     
     [self.serviceModelButton mas_makeConstraints:^(MASConstraintMaker *make) {
-        make.left.equalTo(self.serviceNameLabel.mas_right).offset(0);
+        make.left.equalTo(self.serviceNameLabel.mas_right).offset(6);
         make.top.equalTo(self.topBarView).offset(8);
         make.bottom.equalTo(self.topBarView).offset(-8);
     }];

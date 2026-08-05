@@ -35,11 +35,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)resetTableView:(nullable void (^)(void))completion;
 
-/// Recreate the query model and rebind dependent managers for background OCR.
-- (void)resetQueryModelForBackgroundOCR;
 
 - (void)startQueryText:(nullable NSString *)text actionType:(EZActionType)actionType;
-- (void)startOCRImage:(NSImage *)image actionType:(EZActionType)actionType autoQuery:(BOOL)autoQuery;
 
 - (void)retryQueryWithLanguage:(EZLanguage)language;
 

@@ -9,14 +9,19 @@
 import Defaults
 import Foundation
 
+/// Returns the unified Defaults key for a window-configuration flag.
+///
+/// Storage is shared by every query window in this fork: `windowType` is
+/// accepted for call-site compatibility but no longer keys the storage.
+/// Legacy per-window values are migrated once, preferring the fixed window.
 func windowConfigurationKey<T: _DefaultsSerializable>(
     _ key: WindowConfigurationKey,
     windowType: EZWindowType,
     defaultValue: T
 )
     -> Defaults.Key<T> {
-    let key = "EZConfiguration_\(key.stringValue)_Window\(windowType.rawValue)_Key"
-    return .init(key, default: defaultValue)
+    _ = WindowConfigurationMigration.once
+    return .init("EZConfiguration_\(key.stringValue)_Key", default: defaultValue)
 }
 
 // MARK: - WindowConfigurationKey
@@ -34,4 +39,33 @@ enum WindowConfigurationKey: Int {
         case .selectLanguageCellVisible: "SelectLanguageCellVisible"
         }
     }
+}
+
+// MARK: - WindowConfigurationMigration
+
+/// One-time copy of legacy per-window configuration values to the unified
+/// keys. The fixed window's value wins, falling back to mini, then main.
+private enum WindowConfigurationMigration {
+    static let once: () = {
+        let defaults = UserDefaults.standard
+        let keys: [WindowConfigurationKey] = [
+            .inputFieldCellVisible,
+            .selectLanguageCellVisible,
+        ]
+        let legacyPriority: [EZWindowType] = [.fixed, .mini, .main]
+
+        for key in keys {
+            let unifiedKey = "EZConfiguration_\(key.stringValue)_Key"
+            guard defaults.object(forKey: unifiedKey) == nil else { continue }
+
+            for windowType in legacyPriority {
+                let legacyKey =
+                    "EZConfiguration_\(key.stringValue)_Window\(windowType.rawValue)_Key"
+                if let value = defaults.object(forKey: legacyKey) {
+                    defaults.set(value, forKey: unifiedKey)
+                    break
+                }
+            }
+        }
+    }()
 }

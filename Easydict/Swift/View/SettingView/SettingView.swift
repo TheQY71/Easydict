@@ -6,6 +6,7 @@
 //  Copyright © 2023 izual. All rights reserved.
 //
 
+import SFSafeSymbols
 import SwiftUI
 
 // MARK: - SettingTab
@@ -29,35 +30,35 @@ struct SettingView: View {
     var body: some View {
         TabView(selection: $selection) {
             GeneralTab()
-                .tabItem { Label("setting_general", systemImage: "gear") }
+                .tabItem { Label("setting_general", systemSymbol: .gear) }
                 .tag(SettingTab.general)
 
             ServiceTab()
-                .tabItem { Label("service", systemImage: "briefcase") }
+                .tabItem { Label("service", systemSymbol: .briefcase) }
                 .tag(SettingTab.service)
 
             FavoritesTab()
-                .tabItem { Label("favorites.tab", systemImage: "star") }
+                .tabItem { Label("favorites.tab", systemSymbol: .star) }
                 .tag(SettingTab.favorites)
 
             DisabledAppTab()
-                .tabItem { Label("disabled_app_list", systemImage: "nosign") }
+                .tabItem { Label("disabled_app_list", systemSymbol: .nosign) }
                 .tag(SettingTab.disabled)
 
             ShortcutTab()
-                .tabItem { Label("shortcut", systemImage: "command.square") }
+                .tabItem { Label("shortcut", systemSymbol: .commandSquare) }
                 .tag(SettingTab.shortcut)
 
             AdvancedTab()
-                .tabItem { Label("advanced", systemImage: "gearshape.2") }
+                .tabItem { Label("advanced", systemSymbol: .gearshape2) }
                 .tag(SettingTab.advanced)
 
             PrivacyTab()
-                .tabItem { Label("privacy", systemImage: "hand.raised.square") }
+                .tabItem { Label("privacy", systemSymbol: .handRaisedSquare) }
                 .tag(SettingTab.privacy)
 
             AboutTab()
-                .tabItem { Label("setting.about", systemImage: "info.bubble") }
+                .tabItem { Label("setting.about", systemSymbol: .infoBubble) }
                 .tag(SettingTab.about)
         }
         .background(

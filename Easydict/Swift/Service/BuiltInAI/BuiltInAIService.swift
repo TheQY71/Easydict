@@ -47,19 +47,10 @@ class BuiltInAIService: BaseOpenAIService {
 
     // MARK: Internal
 
+    /// No models of its own: this class now only serves as the base for the AI
+    /// tool services, which each declare the model they use.
     override var defaultModels: [String] {
-        [
-            // GML free models
-            ZhipuModel.glm_4_5_flash.rawValue,
-            ZhipuModel.glm_4_flash_250414.rawValue,
-
-            // Groq free models
-            GroqModel.llama3_1_8b_instant.rawValue,
-        ]
-    }
-
-    override var defaultModel: String {
-        ZhipuModel.glm_4_flash_250414.rawValue
+        []
     }
 
     override var canFetchRemoteModels: Bool {

@@ -20,24 +20,58 @@ struct AdvancedTab: View {
 
     var body: some View {
         Form {
+            // Quick chat backend, first because it is this fork's core feature.
+            Section {
+                Picker(
+                    selection: $quickChatServiceType,
+                    label: AdvancedTabItemView(
+                        icon: .bubbleLeftAndBubbleRight,
+                        labelText: "setting.advance.quick_chat_service",
+                        subtitleText: "setting.advance.quick_chat_service_desc"
+                    )
+                ) {
+                    ForEach(quickChatServiceOptions, id: \.typeID) { option in
+                        Text(option.title)
+                            .tag(option.typeID)
+                    }
+                }
+                .onChange(of: quickChatServiceType) { _ in
+                    quickChatModel = currentQuickChatModel
+                }
+
+                if !quickChatModelOptions.isEmpty {
+                    Picker(
+                        selection: $quickChatModel,
+                        label: AdvancedTabItemView(
+                            icon: .cpu,
+                            labelText: "setting.advance.quick_chat_model"
+                        )
+                    ) {
+                        ForEach(quickChatModelOptions, id: \.self) { model in
+                            Text(model)
+                                .tag(model)
+                        }
+                    }
+                    .onAppear { quickChatModel = currentQuickChatModel }
+                    .onChange(of: quickChatModel) { newModel in
+                        applyQuickChatModel(newModel)
+                    }
+                }
+            } header: {
+                Text("setting.advance.header.quick_chat")
+            }
+
+            // General settings section
             Section {
                 Toggle(isOn: $enableBetaFeature) {
                     AdvancedTabItemView(
-                        color: .blue,
                         icon: .hammerFill,
                         labelText: "setting.advance.enable_beta_feature"
                     )
                 }
-            }
-
-            // Items image color order: blue, green, orange, purple, red, mint, yellow, cyan, indigo
-
-            // General settings section
-            Section {
                 Picker(
                     selection: $defaultTTSServiceType,
                     label: AdvancedTabItemView(
-                        color: .blue,
                         icon: .ellipsisBubbleFill,
                         labelText: "setting.advance.default_tts_service"
                     )
@@ -49,7 +83,6 @@ struct AdvancedTab: View {
                 }
                 Toggle(isOn: $preferYoudaoTTSForEnglishWord) {
                     AdvancedTabItemView(
-                        color: .indigo,
                         icon: .waveform,
                         labelText: "setting.advance.prefer_youdao_tts_for_english_word",
                         subtitleText: "setting.advance.prefer_youdao_tts_for_english_word_desc"
@@ -57,7 +90,6 @@ struct AdvancedTab: View {
                 }
                 Toggle(isOn: $disableTipsView) {
                     AdvancedTabItemView(
-                        color: .green,
                         icon: .lightbulbFill,
                         labelText: "setting.advance.disable_tips_view"
                     )
@@ -67,7 +99,6 @@ struct AdvancedTab: View {
                 if #available(macOS 15.0, *) {
                     Toggle(isOn: $enableLocalAppleTranslation) {
                         AdvancedTabItemView(
-                            color: .orange,
                             icon: .appleLogo,
                             labelText: "setting.advance.apple_offline_translation",
                             subtitleText: "setting.advance.apple_offline_translation_desc"
@@ -92,7 +123,6 @@ struct AdvancedTab: View {
                     }
                 } label: {
                     AdvancedTabItemView(
-                        color: .purple,
                         icon: .book,
                         labelText: "setting.advance.min_classical_chinese_text_detect_length"
                     )
@@ -114,7 +144,6 @@ struct AdvancedTab: View {
 
                 Toggle(isOn: $autoShowQueryIcon) {
                     AdvancedTabItemView(
-                        color: .blue,
                         icon: .cursorarrowRays,
                         labelText: "setting.advance.auto_show_query_icon"
                     )
@@ -148,7 +177,7 @@ struct AdvancedTab: View {
 
                     Text("setting.advance.auto_show_query_icon.condition.desc")
                         .font(.footnote)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 .padding(.leading, 28)
                 .disabled(!autoShowQueryIcon)
@@ -156,7 +185,6 @@ struct AdvancedTab: View {
 
                 Toggle(isOn: $clickQuery) {
                     AdvancedTabItemView(
-                        color: .green,
                         icon: .cursorarrowClick,
                         labelText: "setting.advance.click_icon_query_info"
                     )
@@ -169,7 +197,6 @@ struct AdvancedTab: View {
             Section {
                 Toggle(isOn: $enableForceGetSelectedText) {
                     AdvancedTabItemView(
-                        color: .blue,
                         icon: .characterCursorIbeam,
                         labelText: "setting.advance.enable_force_get_selected_text",
                         subtitleText: "setting.advance.enable_force_get_selected_text_desc"
@@ -179,7 +206,6 @@ struct AdvancedTab: View {
                 Picker(
                     selection: $forceGetSelectedTextType,
                     label: AdvancedTabItemView(
-                        color: .green,
                         icon: .highlighter,
                         labelText: "setting.advance.force_get_selected_text_type"
                     )
@@ -192,7 +218,6 @@ struct AdvancedTab: View {
 
                 Toggle(isOn: $preferAppleScriptAPI) {
                     AdvancedTabItemView(
-                        color: .orange,
                         icon: .applescript,
                         labelText: "setting.advance.prefer_applescript_api",
                         subtitleText: "setting.advance.prefer_applescript_api_desc"
@@ -200,7 +225,6 @@ struct AdvancedTab: View {
                 }
                 Toggle(isOn: $enableCompatibilityReplace) {
                     AdvancedTabItemView(
-                        color: .purple,
                         icon: .arrowForwardSquare,
                         labelText: "setting.advance.enable_compatibility_replace",
                         subtitleText: "setting.advance.enable_compatibility_replace_desc"
@@ -208,7 +232,6 @@ struct AdvancedTab: View {
                 }
                 Toggle(isOn: $autoSelectAllTextFieldText) {
                     AdvancedTabItemView(
-                        color: .red,
                         icon: .checkmarkSquare,
                         labelText: "setting.advance.auto_select_all_text_field_text",
                         subtitleText: "setting.advance.auto_select_all_text_field_text_desc"
@@ -216,7 +239,6 @@ struct AdvancedTab: View {
                 }
                 Toggle(isOn: $enableRemoveBooksExcerptInfo) {
                     AdvancedTabItemView(
-                        color: .mint,
                         icon: .book,
                         labelText: "setting.advance.enable_remove_books_excerpt_info"
                     )
@@ -229,21 +251,18 @@ struct AdvancedTab: View {
             Section {
                 Toggle(isOn: $replaceNewlineWithSpace) {
                     AdvancedTabItemView(
-                        color: .blue,
                         icon: .arrowForwardSquare,
                         labelText: "setting.advance.automatically_replace_newline_with_space"
                     )
                 }
                 Toggle(isOn: $automaticallyRemoveCodeCommentSymbols) {
                     AdvancedTabItemView(
-                        color: .green,
                         icon: .chevronLeftForwardslashChevronRight,
                         labelText: "setting.advance.automatically_remove_code_comment_symbols"
                     )
                 }
                 Toggle(isOn: $automaticWordSegmentation) {
                     AdvancedTabItemView(
-                        color: .orange,
                         icon: .textWordSpacing,
                         labelText: "setting.advance.automatically_split_words"
                     )
@@ -251,54 +270,9 @@ struct AdvancedTab: View {
             } header: {
                 Text("setting.advance.header.query_text_processing")
             } footer: {
-                HStack {
-                    Text("setting.advance.footer.query_text_processing_desc")
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                        .padding(.leading, 10)
-
-                    Spacer()
-                }
-            }
-
-            // OCR settings section
-            Section {
-                Toggle(isOn: $enableYoudaoOCR) {
-                    AdvancedTabItemView(
-                        color: .blue,
-                        icon: .circleRectangleFilledPatternDiagonalline,
-                        labelText: "setting.advance.enable_youdao_ocr",
-                        subtitleText: "setting.advance.enable_youdao_ocr_desc"
-                    )
-                }
-                Toggle(isOn: $enableOCRTextNormalization) {
-                    AdvancedTabItemView(
-                        color: .green,
-                        icon: .docViewfinder,
-                        labelText: "setting.advance.enable_ocr_text_normalization",
-                        subtitleText: "setting.advance.enable_ocr_text_normalization_desc"
-                    )
-                }
-
-                Toggle(isOn: $showOCRMenuItems) {
-                    AdvancedTabItemView(
-                        color: .orange,
-                        icon: .textAndCommandMacwindow,
-                        labelText: "setting.advance.show_ocr_menu_items",
-                        subtitleText: "setting.advance.show_ocr_menu_items_desc"
-                    )
-                }
-
-                Toggle(isOn: $isScreenshotTipLayerHidden) {
-                    AdvancedTabItemView(
-                        color: .purple,
-                        icon: .lightbulbFill,
-                        labelText: "setting.advance.hide_screenshot_tip_layer",
-                        subtitleText: "setting.advance.hide_screenshot_tip_layer_desc"
-                    )
-                }
-            } header: {
-                Text("setting.advance.header.ocr_settings")
+                Text("setting.advance.footer.query_text_processing_desc")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
 
             // Windows management
@@ -306,7 +280,6 @@ struct AdvancedTab: View {
                 Picker(
                     selection: $mouseSelectTranslateWindowType,
                     label: AdvancedTabItemView(
-                        color: .blue,
                         icon: .cursorarrowRays,
                         labelText: "setting.advance.window.mouse_select_translate_window_type"
                     )
@@ -320,7 +293,6 @@ struct AdvancedTab: View {
                 Picker(
                     selection: $shortcutSelectTranslateWindowType,
                     label: AdvancedTabItemView(
-                        color: .green,
                         icon: .keyboardFill,
                         labelText: "setting.advance.window.shortcut_select_translate_window_type"
                     )
@@ -334,7 +306,6 @@ struct AdvancedTab: View {
                 Picker(
                     selection: $fixedWindowPosition,
                     label: AdvancedTabItemView(
-                        color: .orange,
                         icon: .textAndCommandMacwindow,
                         labelText: "setting.advance.window.fixed_window_position"
                     )
@@ -348,7 +319,6 @@ struct AdvancedTab: View {
                 Picker(
                     selection: $miniWindowPosition,
                     label: AdvancedTabItemView(
-                        color: .purple,
                         icon: .macwindow,
                         labelText: "setting.advance.window.mini_window_position"
                     )
@@ -361,7 +331,6 @@ struct AdvancedTab: View {
 
                 Toggle(isOn: $pinWindowWhenDisplayed) {
                     AdvancedTabItemView(
-                        color: .red,
                         icon: .pinFill,
                         labelText: "setting.advance.pin_window_when_showing"
                     )
@@ -369,7 +338,6 @@ struct AdvancedTab: View {
 
                 Toggle(isOn: $hideMainWindow) {
                     AdvancedTabItemView(
-                        color: .mint,
                         icon: .eyeSlashFill,
                         labelText: "setting.advance.hide_main_window"
                     )
@@ -378,7 +346,6 @@ struct AdvancedTab: View {
                 Picker(
                     selection: $maxWindowHeightPercentageValue,
                     label: AdvancedTabItemView(
-                        color: .yellow,
                         icon: .arrowUpAndDown,
                         labelText: "setting.advance.window.max_height_percentage"
                     )
@@ -403,7 +370,6 @@ struct AdvancedTab: View {
             Section {
                 Toggle(isOn: $enableHTTPServer) {
                     AdvancedTabItemView(
-                        color: getHttpIconColor(),
                         icon: .network,
                         labelText: "setting.advance.enable_http_server"
                     )
@@ -421,7 +387,6 @@ struct AdvancedTab: View {
                     }
                 } label: {
                     AdvancedTabItemView(
-                        color: getHttpIconColor(),
                         icon: .externaldriveConnectedToLineBelow,
                         labelText: "setting.advance.http_port",
                         subtitleText: "setting.advance.http_port_desc"
@@ -436,18 +401,18 @@ struct AdvancedTab: View {
 
     // MARK: Private
 
+    @State private var quickChatModel = ""
+
     @Default(.enableBetaFeature) private var enableBetaFeature
 
     @Default(.defaultTTSServiceType) private var defaultTTSServiceType
+    @Default(.quickChatServiceType) private var quickChatServiceType
+
     @Default(.preferYoudaoTTSForEnglishWord) private var preferYoudaoTTSForEnglishWord
     @Default(.disableTipsView) private var disableTipsView
-    @Default(.enableYoudaoOCR) private var enableYoudaoOCR
     @Default(.enableCompatibilityReplace) private var enableCompatibilityReplace
     @Default(.enableAppleOfflineTranslation) private var enableLocalAppleTranslation
     @Default(.minClassicalChineseTextDetectLength) private var minClassicalChineseTextDetectLength
-    @Default(.enableOCRTextNormalization) private var enableOCRTextNormalization
-    @Default(.showOCRMenuItems) private var showOCRMenuItems
-    @Default(.isScreenshotTipLayerHidden) private var isScreenshotTipLayerHidden
     @Default(.autoSelectAllTextFieldText) private var autoSelectAllTextFieldText
     @Default(.preferAppleScriptAPI) private var preferAppleScriptAPI
 
@@ -477,9 +442,39 @@ struct AdvancedTab: View {
 
     @Default(.maxWindowHeightPercentage) private var maxWindowHeightPercentageValue
 
-    /// Returns Color.green if `enableHTTPServer` is true, returns Color.red otherwise.
-    private func getHttpIconColor() -> Color {
-        enableHTTPServer ? .green : .red
+    /// Models the quick chat service supports, empty when it has none configured.
+    private var quickChatModelOptions: [String] {
+        quickChatStreamService?.validModels ?? []
+    }
+
+    private var currentQuickChatModel: String {
+        quickChatStreamService?.model ?? ""
+    }
+
+    /// A throwaway instance of the quick chat service, used to read and write its
+    /// `Defaults`-backed model setting.
+    private var quickChatStreamService: StreamService? {
+        QueryServiceFactory.shared.service(withTypeId: quickChatServiceType) as? StreamService
+    }
+
+    /// Stream-capable services offered as the quick chat backend.
+    private var quickChatServiceOptions: [(typeID: String, title: String)] {
+        let factory = QueryServiceFactory.shared
+        return factory.allServiceTypeIDs.compactMap { typeID in
+            guard let metadata = factory.metadata(withTypeId: typeID), metadata.isStream else {
+                return nil
+            }
+            return (typeID: typeID, title: metadata.title)
+        }
+    }
+
+    /// Writes the model back to the service. The setting is the service's own, so
+    /// the choice is shared with that service's translation configuration.
+    private func applyQuickChatModel(_ model: String) {
+        guard !model.isEmpty, let service = quickChatStreamService, service.model != model else {
+            return
+        }
+        service.model = model
     }
 }
 

@@ -38,8 +38,8 @@ private struct ServiceItemView: View {
     let item: ServiceListItem
 
     var body: some View {
-        HStack(spacing: 4) {
-            HStack {
+        HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 ServiceIcon(type: item.type, iconSize: 18, containerSize: 22)
                 Text(verbatim: item.name)
                     .lineLimit(1)
@@ -75,7 +75,8 @@ private struct ServiceItemView: View {
         }
         .listRowSeparator(.hidden)
         .listRowInsets(.init())
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
         .contentShape(Rectangle())
         .alert(
             "setting.service.failed_to_enable_service \(item.name)",
@@ -164,250 +165,6 @@ private struct ServiceItemView: View {
     }
 }
 
-// MARK: - ServiceListControls
-
-struct ServiceListControls: View {
-    // MARK: Internal
-
-    var body: some View {
-        ServiceListControl(
-            canRemove: viewModel.canRemoveSelectedServices,
-            addAction: {
-                isShowingAddServiceSheet = true
-            },
-            removeAction: {
-                viewModel.removeSelectedServices()
-            }
-        )
-        .frame(width: 112, height: 24)
-        .sheet(isPresented: $isShowingAddServiceSheet) {
-            AddServiceSheet()
-                .environmentObject(viewModel)
-        }
-    }
-
-    // MARK: Private
-
-    @State private var isShowingAddServiceSheet = false
-
-    @EnvironmentObject private var viewModel: ServiceTabViewModel
-}
-
-// MARK: - ServiceListControl
-
-private struct ServiceListControl: NSViewRepresentable {
-    final class Coordinator: NSObject {
-        // MARK: Lifecycle
-
-        init(addAction: @escaping () -> (), removeAction: @escaping () -> ()) {
-            self.addAction = addAction
-            self.removeAction = removeAction
-        }
-
-        // MARK: Internal
-
-        var addAction: () -> ()
-        var removeAction: () -> ()
-
-        @objc
-        func selectSegment(_ sender: NSSegmentedControl) {
-            switch sender.selectedSegment {
-            case 0:
-                addAction()
-            case 1:
-                removeAction()
-            default:
-                break
-            }
-            sender.selectedSegment = -1
-        }
-    }
-
-    let canRemove: Bool
-    let addAction: () -> ()
-    let removeAction: () -> ()
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(addAction: addAction, removeAction: removeAction)
-    }
-
-    func makeNSView(context: Context) -> NSSegmentedControl {
-        let control = NSSegmentedControl()
-        control.segmentCount = 2
-        control.segmentStyle = .smallSquare
-        control.trackingMode = .momentary
-        control.controlSize = .small
-        control.target = context.coordinator
-        control.action = #selector(Coordinator.selectSegment(_:))
-        control.setImage(NSImage(systemSymbol: .plus), forSegment: 0)
-        control.setImage(NSImage(systemSymbol: .minus), forSegment: 1)
-        control.setWidth(55, forSegment: 0)
-        control.setWidth(55, forSegment: 1)
-        control.setToolTip(String(localized: "setting.service.add"), forSegment: 0)
-        control.setToolTip(String(localized: "setting.service.remove"), forSegment: 1)
-        return control
-    }
-
-    func updateNSView(_ control: NSSegmentedControl, context: Context) {
-        context.coordinator.addAction = addAction
-        context.coordinator.removeAction = removeAction
-        control.setEnabled(canRemove, forSegment: 1)
-    }
-}
-
-// MARK: - AddServiceSheet
-
-private struct AddServiceSheet: View {
-    // MARK: Internal
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("setting.service.add")
-                .font(.headline)
-
-            Divider()
-
-            if viewModel.availableServiceItems.isEmpty {
-                Text("setting.service.add.empty")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 18) {
-                        ForEach(requirementGroups) { group in
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(verbatim: group.title)
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-
-                                LazyVGrid(columns: gridColumns, alignment: .leading, spacing: 12) {
-                                    ForEach(group.items) { item in
-                                        AddServiceTile(
-                                            item: item,
-                                            isSelected: selectedTypeIds.contains(item.id)
-                                        ) {
-                                            toggleSelection(item)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding(.trailing, 2)
-                }
-            }
-
-            Divider()
-
-            HStack {
-                Spacer()
-                Button("cancel") {
-                    dismiss()
-                }
-                .keyboardShortcut(.cancelAction)
-                .frame(width: 76)
-
-                Button("ok") {
-                    addSelectedServices()
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(selectedServiceItems.isEmpty)
-                .frame(width: 76)
-            }
-        }
-        .padding(18)
-        .frame(width: 640, height: 540)
-    }
-
-    // MARK: Private
-
-    @State private var selectedTypeIds: Set<String> = []
-
-    @Environment(\.dismiss) private var dismiss
-
-    @EnvironmentObject private var viewModel: ServiceTabViewModel
-
-    private var gridColumns: [GridItem] {
-        [
-            GridItem(.adaptive(minimum: 142, maximum: 180), spacing: 12),
-        ]
-    }
-
-    private var selectedServiceItems: [ServiceListItem] {
-        viewModel.availableServiceItems.filter {
-            selectedTypeIds.contains($0.id)
-        }
-    }
-
-    private var requirementGroups: [ServiceGroup] {
-        ServiceAPIKeyRequirement.addSheetOrder.compactMap { requirement in
-            let items = viewModel.availableServiceItems.filter {
-                $0.requirement == requirement
-            }
-            guard !items.isEmpty else {
-                return nil
-            }
-            return ServiceGroup(title: ServiceRequirementBadge.title(for: requirement), items: items)
-        }
-    }
-
-    private func toggleSelection(_ item: ServiceListItem) {
-        if !selectedTypeIds.insert(item.id).inserted {
-            selectedTypeIds.remove(item.id)
-        }
-    }
-
-    private func addSelectedServices() {
-        viewModel.addServices(selectedServiceItems)
-        dismiss()
-    }
-}
-
-// MARK: - AddServiceTile
-
-private struct AddServiceTile: View {
-    // MARK: Internal
-
-    let item: ServiceListItem
-    let isSelected: Bool
-    let addAction: () -> ()
-
-    var body: some View {
-        Button(action: addAction) {
-            HStack(spacing: 10) {
-                ServiceIcon(type: item.type, iconSize: 26, containerSize: 32)
-
-                Text(verbatim: item.name)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
-            .contentShape(RoundedRectangle(cornerRadius: 8))
-        }
-        .buttonStyle(.plain)
-        .background {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(.primary.opacity(isSelected || isHovered ? 0.08 : 0))
-                }
-        }
-        .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) {
-                isHovered = hovering
-            }
-        }
-    }
-
-    // MARK: Private
-
-    @State private var isHovered = false
-}
-
 // MARK: - ServiceIcon
 
 private struct ServiceIcon: View {
@@ -432,7 +189,7 @@ private struct ServiceRequirementBadge: View {
     let requirement: ServiceAPIKeyRequirement
 
     var body: some View {
-        Text(verbatim: Self.title(for: requirement))
+        Text(titleKey)
             .font(.caption2.weight(.medium))
             .foregroundStyle(foregroundColor)
             .lineLimit(1)
@@ -449,20 +206,20 @@ private struct ServiceRequirementBadge: View {
             }
     }
 
-    static func title(for requirement: ServiceAPIKeyRequirement) -> String {
+    // MARK: Private
+
+    private var titleKey: LocalizedStringKey {
         switch requirement {
         case .none:
-            "no-key"
+            "service.badge.no_key"
         case .builtIn:
-            "built-in"
+            "service.badge.built_in"
         case .userProvided:
-            "key"
+            "service.badge.key_required"
         case .agentCLI:
-            "cli"
+            "service.badge.cli"
         }
     }
-
-    // MARK: Private
 
     private var foregroundColor: Color {
         switch requirement {
@@ -484,22 +241,4 @@ private struct ServiceRequirementBadge: View {
     private var borderColor: Color {
         foregroundColor.opacity(0.28)
     }
-}
-
-// MARK: - ServiceGroup
-
-private struct ServiceGroup: Identifiable {
-    let title: String
-    let items: [ServiceListItem]
-
-    var id: String { title }
-}
-
-extension ServiceAPIKeyRequirement {
-    fileprivate static let addSheetOrder: [ServiceAPIKeyRequirement] = [
-        .builtIn,
-        .userProvided,
-        .agentCLI,
-        .none,
-    ]
 }

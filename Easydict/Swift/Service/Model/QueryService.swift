@@ -494,39 +494,6 @@ open class QueryService: NSObject {
         try await audioPlayer.defaultTTSService.textToAudio(text, fromLanguage: fromLanguage, accent: accent)
     }
 
-    /// Perform OCR for the given image.
-    open func ocr(
-        _ image: NSImage,
-        from: Language,
-        to: Language
-    ) async throws
-        -> EZOCRResult? {
-        fatalError("You must override \(#function) in a subclass.")
-    }
-
-    /// Perform OCR for the given query model.
-    open func ocr(_ queryModel: QueryModel) async throws -> EZOCRResult? {
-        guard let image = queryModel.ocrImage else {
-            throw QueryError.error(type: .parameter, message: "Image is nil")
-        }
-        return try await ocr(
-            image,
-            from: queryModel.queryFromLanguage,
-            to: queryModel.queryTargetLanguage
-        )
-    }
-
-    /// Perform OCR and translation with an intermediate OCR callback.
-    open func ocrAndTranslate(
-        _ image: NSImage,
-        from: Language,
-        to: Language,
-        ocrSuccess: @escaping (EZOCRResult, Bool) -> ()
-    ) async throws
-        -> (EZOCRResult?, QueryResult?) {
-        fatalError("You must override \(#function) in a subclass.")
-    }
-
     // MARK: Internal
 
     /// Monotonic token used to drop stale stream chunks after result reset.

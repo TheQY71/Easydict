@@ -13,12 +13,10 @@
 #import "EZLanguageManager.h"
 #import "EZToast.h"
 
-#import "MMCrash.h"
 #import "DictionaryKit.h"
 #import "EZAudioPlayer.h"
 
 #import "EZWebViewManager.h"
-#import "EZOCRResult.h"
 #import "EZWindowPatch.h"
 
 #import "EZLabel.h"

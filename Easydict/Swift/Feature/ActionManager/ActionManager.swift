@@ -22,7 +22,7 @@ class ActionManager: NSObject {
 
     @objc static let shared = ActionManager()
 
-    var translateService = BuiltInAIService()
+    var translateService = DeepSeekService()
     var polishService = PolishingService()
 
     // MARK: - Text Field Detection and Access
@@ -55,6 +55,14 @@ class ActionManager: NSObject {
 
     /// Common method to execute text replacement actions
     private func executeTextReplacementAction(_ type: ProcessingType) async {
+        // Replacing text inside Easydict itself would type the result back into our
+        // own window while the stream is still running — the paste fallback fires
+        // once per chunk, so the app spends the whole answer pasting into itself.
+        guard frontmostAppBundleID != Bundle.main.bundleIdentifier else {
+            logInfo("Frontmost app is Easydict itself, skipping \(type)")
+            return
+        }
+
         let enableSelectAll = Defaults[.autoSelectAllTextFieldText]
         let elementInfo = await systemUtility.focusedElementInfo(enableSelectAll: enableSelectAll)
 

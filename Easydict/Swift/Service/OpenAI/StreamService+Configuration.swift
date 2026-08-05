@@ -80,7 +80,6 @@ extension StreamService {
 
         NotificationCenter.default.postServiceUpdateNotification(
             serviceType: serviceTypeWithUniqueIdentifier(),
-            windowType: windowType,
             autoQuery: autoQuery
         )
     }

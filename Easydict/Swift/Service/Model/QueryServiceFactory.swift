@@ -30,13 +30,15 @@ private struct ServiceRegistration {
         _ serviceClass: QueryService.Type,
         _ titleKey: String,
         apiKeyRequirement: ServiceAPIKeyRequirement = .userProvided,
-        allowsMultipleInstances: Bool = false
+        allowsMultipleInstances: Bool = false,
+        isSelectable: Bool = true
     ) {
         self.serviceType = serviceType
         self.serviceClass = serviceClass
         self.titleKey = titleKey
         self.apiKeyRequirement = apiKeyRequirement
         self.allowsMultipleInstances = allowsMultipleInstances
+        self.isSelectable = isSelectable
     }
 
     // MARK: Internal
@@ -46,6 +48,11 @@ private struct ServiceRegistration {
     let titleKey: String
     let apiKeyRequirement: ServiceAPIKeyRequirement
     let allowsMultipleInstances: Bool
+
+    /// Whether the service is offered as a query service in the settings list.
+    /// Non-selectable services stay registered so other subsystems can still
+    /// instantiate them, but never run as translation services.
+    let isSelectable: Bool
 }
 
 // MARK: - QueryServiceFactory
@@ -80,6 +87,11 @@ final class QueryServiceFactory: NSObject {
         return service
     }
 
+    /// Type identifiers offered as query services in the settings list.
+    func isSelectable(typeIdIfHave: String) -> Bool {
+        serviceRegistration(withTypeId: typeIdIfHave)?.isSelectable ?? false
+    }
+
     func services(fromTypes types: [String]) -> [QueryService] {
         types.compactMap { service(withTypeId: $0) }
     }
@@ -112,35 +124,19 @@ final class QueryServiceFactory: NSObject {
     // MARK: Private
 
     private let serviceRegistrations: [ServiceRegistration] = [
-        .init(.appleDictionary, AppleDictionary.self, "apple_dictionary", apiKeyRequirement: .none),
-        .init(.mDict, MDictService.self, "service.mdict.name", apiKeyRequirement: .none),
         .init(.youdao, YoudaoService.self, "youdao_dict", apiKeyRequirement: .none),
-        .init(.openAI, OpenAIService.self, "openai_translate"),
         .init(.deepSeek, DeepSeekService.self, "deepseek_translate"),
-        .init(.groq, GroqService.self, "groq_translate"),
-        .init(.zhipu, ZhipuService.self, "zhipu_translate"),
-        .init(.miniMax, MiniMaxService.self, "minimax_translate"),
-        .init(.gitHub, GitHubService.self, "github_models"),
-        .init(.builtInAI, BuiltInAIService.self, "built_in_ai", apiKeyRequirement: .builtIn),
-        .init(.claudeCode, ClaudeCodeService.self, "service.claude_code.name", apiKeyRequirement: .agentCLI),
-        .init(.codexCLI, CodexCLIService.self, "service.codex_cli.name", apiKeyRequirement: .agentCLI),
-        .init(.gemini, GeminiService.self, "gemini_translate"),
-        .init(.claude, ClaudeService.self, "claude_translate"),
-        .init(.ollama, OllamaService.self, "ollama_translate", apiKeyRequirement: .none),
         .init(.polishing, PolishingService.self, "polishing_service", apiKeyRequirement: .builtIn),
-        .init(.summary, SummaryService.self, "summary_service", apiKeyRequirement: .builtIn),
-        .init(.customOpenAI, CustomOpenAIService.self, "custom_openai", allowsMultipleInstances: true),
-        .init(.deepL, DeepLService.self, "deepL_translate", apiKeyRequirement: .none),
-        .init(.google, GoogleService.self, "google_translate", apiKeyRequirement: .none),
-        .init(.apple, AppleService.self, "apple_translate", apiKeyRequirement: .none),
-        .init(.baidu, BaiduService.self, "baidu_translate"),
-        .init(.bing, BingService.self, "bing_translate", apiKeyRequirement: .none),
-        .init(.volcano, VolcanoService.self, "volcano_translate"),
-        .init(.niuTrans, NiuTransService.self, "niuTrans_translate", apiKeyRequirement: .builtIn),
-        .init(.caiyun, CaiyunService.self, "caiyun_translate", apiKeyRequirement: .builtIn),
-        .init(.tencent, TencentService.self, "tencent_translate"),
-        .init(.alibaba, AliService.self, "ali_translate"),
-        .init(.doubao, DoubaoService.self, "doubao_translate"),
+
+        // Not offered as translation services; registered because other subsystems
+        // resolve them through this factory: Apple/Google/Baidu back language
+        // detection, and Apple/Google/Baidu/Bing/Youdao are the text-to-speech
+        // options. `OpenAIService` and `BuiltInAIService` additionally sit in the
+        // class hierarchy above DeepSeek and Polishing.
+        .init(.apple, AppleService.self, "apple_translate", apiKeyRequirement: .none, isSelectable: false),
+        .init(.google, GoogleService.self, "google_translate", apiKeyRequirement: .none, isSelectable: false),
+        .init(.baidu, BaiduService.self, "baidu_translate", isSelectable: false),
+        .init(.bing, BingService.self, "bing_translate", apiKeyRequirement: .none, isSelectable: false),
     ]
 
     private func serviceClass(withTypeId typeIdIfHave: String) -> QueryService.Type? {

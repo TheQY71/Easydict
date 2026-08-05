@@ -452,27 +452,6 @@ static BOOL ez_frame_equal_with_tolerance(CGRect lhs, CGRect rhs, CGFloat tolera
 
 #pragma mark - Public Methods
 
-/// Recreate the query model and rebind dependent managers for background OCR.
-- (void)resetQueryModelForBackgroundOCR {
-    EZQueryModel *model = [[EZQueryModel alloc] init];
-    model.userSourceLanguage = MyConfiguration.shared.fromLanguage;
-    model.userTargetLanguage = MyConfiguration.shared.toLanguage;
-
-    self.queryModel = model;
-    self.detectManager = [EZDetectManager managerWithModel:model];
-
-    for (EZQueryService *service in self.services) {
-        service.queryModel = model;
-    }
-
-    if (self.queryView) {
-        self.queryView.queryModel = model;
-    }
-
-    if (self.selectLanguageCell) {
-        self.selectLanguageCell.queryModel = model;
-    }
-}
 
 /// Before starting query text, close all result view.
 - (void)startQueryText:(NSString *)text {
@@ -536,91 +515,10 @@ static BOOL ez_frame_equal_with_tolerance(CGRect lhs, CGRect rhs, CGFloat tolera
     return YES;
 }
 
-- (void)startOCRImage:(NSImage *)image
-           actionType:(EZActionType)actionType
-            autoQuery:(BOOL)autoQuery {
-    MMLogInfo(@"start OCR Image: %@, actionType: %@", @(image.size), actionType);
-    MMLogInfo(@"ocr language: %@", self.queryModel.queryFromLanguage);
-
-    self.queryModel.actionType = actionType;
-    self.queryModel.ocrImage = image;
-
-    self.queryView.isTypingChinese = NO;
-    [self.queryView startLoadingAnimation:YES];
-
-    // Hide previous tips view first.
-    [self showTipsView:NO completion:nil];
-
-    mm_weakify(self);
-    [self.detectManager ocrAndDetectTextWithCompletion:^(EZQueryModel *_Nonnull queryModel, NSError *_Nullable error) {
-        mm_strongify(self);
-        // !!!: inputText should be used here, not queryText, queryText may be modified, such as easydict://query?text=xxx
-        NSString *inputText = queryModel.inputText;
-        MMLogInfo(@"ocr result: %@", inputText);
-
-        NSDictionary *dict = @{
-            @"detectedLanguage" : queryModel.detectedLanguage,
-            @"actionType" : actionType,
-        };
-        [EZAnalyticsService logEventWithName:@"ocr" parameters:dict];
-
-
-        if (actionType == EZActionTypeScreenshotOCR) {
-            [inputText copyToPasteboard];
-
-            dispatch_block_on_main_safely(^{
-                [EZToast showSuccessToast];
-            });
-
-            return;
-        }
-
-
-        if (actionType != EZActionTypeScreenshotOCR) {
-            [self.queryView startLoadingAnimation:NO];
-
-            self.inputText = inputText;
-
-            // Show detected language, even auto
-            self.queryModel.showAutoLanguage = YES;
-
-            [self updateQueryTextAndParagraphStyle:inputText actionType:actionType];
-
-            if (error) {
-                NSString *errorMsg = [error localizedDescription];
-                [self showTipsView:YES content:errorMsg type:EZTipsCellTypeErrorTips];
-                return;
-            }
-
-            if (self.config.autoCopyOCRText) {
-                [inputText copyToPasteboard];
-            }
-
-            [self.queryView highlightAllLinks];
-
-            if ([self.inputText ns_isURL]) {
-                // Append a whitespace to beautify the link.
-                self.inputText = [self.inputText stringByAppendingString:@" "];
-
-                return;
-            }
-
-            if (autoQuery) {
-                [self startQueryText];
-            }
-        }
-    }];
-}
-
 - (void)retryQueryWithLanguage:(EZLanguage)language {
     MMLogInfo(@"Retry query with language: %@", language);
 
     [self.audioPlayer stop];
-
-    // Reset query view height if we are retrying OCR query
-    if (self.queryModel.ocrImage) {
-        self.inputText = @"";
-    }
 
     // If has designated language, we don't need to detect language again.
     if (language == EZLanguageAuto) {
@@ -656,7 +554,6 @@ static BOOL ez_frame_equal_with_tolerance(CGRect lhs, CGRect rhs, CGFloat tolera
 - (void)clearInput {
     // Clear query text, detect language and clear button right now;
     self.inputText = @"";
-    self.queryModel.ocrImage = nil;
     [self.queryView setAlertTextHidden:YES];
 
     [self.audioPlayer stop];
@@ -821,14 +718,7 @@ static BOOL ez_frame_equal_with_tolerance(CGRect lhs, CGRect rhs, CGFloat tolera
 }
 
 - (void)startQueryWithType:(EZActionType)actionType {
-    NSImage *ocrImage = self.queryModel.ocrImage;
-
-    if (ocrImage && (actionType == EZActionTypeOCRQuery || actionType == EZActionTypePasteboardOCR)) {
-        BOOL autoQuery = self.config.autoCopyOCRText || self.config.autoQueryPastedText || self.queryModel.autoQuery;
-        [self startOCRImage:ocrImage actionType:actionType autoQuery:autoQuery];
-    } else {
-        [self startQueryText:self.inputText actionType:actionType];
-    }
+    [self startQueryText:self.inputText actionType:actionType];
 }
 
 /// Directly query model.
@@ -1548,42 +1438,6 @@ static BOOL ez_frame_equal_with_tolerance(CGRect lhs, CGRect rhs, CGFloat tolera
     resultCell.service = service;
     resultCell.result = result;
     [self setupResultCell:resultCell];
-
-    WKWebView *webView = nil;
-    if ([service.serviceType isEqualToString:EZServiceTypeAppleDictionary]) {
-        EZAppleDictionary *appleDictService = (EZAppleDictionary *)service;
-
-        EZWebViewManager *webViewManager = result.webViewManager;
-        webView = webViewManager.webView;
-        resultCell.wordResultView.webView = webView;
-
-        BOOL needLoadHTML = result.isShowing && result.htmlString.length && !webViewManager.isLoaded;
-        if (needLoadHTML) {
-            webViewManager.isLoaded = YES;
-
-            NSURL *htmlFileURL = [NSURL fileURLWithPath:appleDictService.htmlFilePath];
-            webView.navigationDelegate = resultCell.wordResultView;
-            [webView loadFileURL:htmlFileURL allowingReadAccessToURL:TTTDictionary.userDictionaryDirectoryURL];
-        } else if (webViewManager.needUpdateIframeHeight && webViewManager.isLoaded) {
-            [webViewManager updateAllIframe];
-        }
-    } else if ([service.serviceType isEqualToString:EZServiceTypeMDict]) {
-        EZWebViewManager *webViewManager = result.webViewManager;
-        webView = webViewManager.webView;
-        webView.appearance = nil;
-        resultCell.wordResultView.webView = webView;
-
-        BOOL htmlChanged = ![webViewManager.loadedHTMLString isEqualToString:result.htmlString];
-        BOOL needLoadHTML = result.isShowing && result.htmlString.length && (!webViewManager.isLoaded || htmlChanged);
-        if (needLoadHTML) {
-            webViewManager.isLoaded = YES;
-            webViewManager.loadedHTMLString = result.htmlString;
-            webView.navigationDelegate = resultCell.wordResultView;
-            [webView loadHTMLString:result.htmlString baseURL:nil];
-        } else if (webViewManager.needUpdateIframeHeight && webViewManager.isLoaded) {
-            [webViewManager updateAllIframe];
-        }
-    }
 
     return resultCell;
 }

@@ -63,8 +63,9 @@ struct SliderCell: View {
             }
 
             Text(value.string1f)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
                 .frame(width: 40, alignment: .trailing)
         }
-        .padding(10)
     }
 }

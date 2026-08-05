@@ -46,14 +46,13 @@ struct TextEditorCell: View {
     let height: CGFloat?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 15) {
+        VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(titleKey)
                 textEditor
             }
             footnoteView
         }
-        .padding(10)
     }
 
     // MARK: Private
@@ -78,7 +77,7 @@ struct TextEditorCell: View {
         if let footnote = footnote {
             Text(footnote)
                 .font(.footnote)
-                .foregroundStyle(.gray)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
         }

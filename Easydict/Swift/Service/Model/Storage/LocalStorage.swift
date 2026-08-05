@@ -88,7 +88,10 @@ final class LocalStorage: NSObject {
             return defaultServiceTypeIDs
         }
 
-        return storedTypes
+        // Drop services that are registered only so other subsystems (language
+        // detection, text to speech) can instantiate them. Filtering here covers
+        // every consumer: query windows, the settings list, and stream subscribers.
+        return storedTypes.filter { QueryServiceFactory.shared.isSelectable(typeIdIfHave: $0) }
     }
 
     /// Persists ordered service type identifiers for the given window.
@@ -405,8 +408,7 @@ final class LocalStorage: NSObject {
 
     private let defaultServiceTypeIDs: [String] = [
         ServiceType.youdao.rawValue,
-        ServiceType.deepL.rawValue,
-        ServiceType.builtInAI.rawValue,
+        ServiceType.deepSeek.rawValue,
     ]
 
     /// Raw dictionary backing service query statistics.
@@ -419,39 +421,37 @@ final class LocalStorage: NSObject {
         }
     }
 
-    /// Ensures all known services have stored defaults for each window type.
+    /// Ensures known services have stored defaults after migrating legacy
+    /// per-window records to unified storage.
     private func setup() {
-        let allWindowTypes: [EZWindowType] = [.mini, .fixed, .main]
+        migrateLegacyPerWindowStorageIfNeeded()
 
-        for windowType in allWindowTypes {
-            let serviceTypeIds = allServiceTypes(windowType)
+        let serviceTypeIds = allServiceTypes(.fixed)
+        for serviceTypeId in serviceTypeIds {
+            let components = serviceIdentifierComponents(from: serviceTypeId)
+            let rawType = components.rawType
+            let uuid = components.uuid
+            let baseType = ServiceType(rawValue: rawType)
 
-            for serviceTypeId in serviceTypeIds {
-                let components = serviceIdentifierComponents(from: serviceTypeId)
-                let rawType = components.rawType
-                let uuid = components.uuid
-                let baseType = ServiceType(rawValue: rawType)
+            if serviceInfo(withType: baseType, serviceId: uuid, windowType: .fixed) == nil {
+                let serviceInfo = QueryServiceConfiguration(
+                    uuid: uuid,
+                    type: baseType,
+                    enabled: true,
+                    enabledQuery: queryCount == 0,
+                    windowType: .fixed
+                )
 
-                if serviceInfo(withType: baseType, serviceId: uuid, windowType: windowType) == nil {
-                    let serviceInfo = QueryServiceConfiguration(
-                        uuid: uuid,
-                        type: baseType,
-                        enabled: true,
-                        enabledQuery: queryCount == 0,
-                        windowType: windowType
-                    )
-
-                    serviceInfo.enabled = defaultServiceTypeIDs.contains(rawType)
-                    setServiceInfo(serviceInfo, windowType: windowType)
-                }
+                serviceInfo.enabled = defaultServiceTypeIDs.contains(rawType)
+                setServiceInfo(serviceInfo, windowType: .fixed)
             }
         }
     }
 
-    /// Applies persisted flags to a live service instance.
+    /// Applies shared persisted flags to a window-specific service instance.
     /// - Parameters:
     ///   - service: Service to update.
-    ///   - windowType: Window the service belongs to.
+    ///   - windowType: Runtime window that owns the service instance.
     private func updateServiceInfo(_ service: QueryService, windowType: EZWindowType) {
         let info = serviceInfo(withType: service.serviceType(), serviceId: service.uuid, windowType: windowType)
         service.enabled = info?.enabled ?? true
@@ -461,24 +461,26 @@ final class LocalStorage: NSObject {
     }
 
     /// Builds the UserDefaults key for a service instance.
+    ///
+    /// Storage is unified across query windows in this fork: `windowType`
+    /// is accepted for call-site compatibility but no longer keys storage.
     /// - Parameters:
     ///   - serviceType: Base service type.
     ///   - serviceId: Unique service identifier.
-    ///   - windowType: Window scope.
+    ///   - windowType: Ignored; kept for API compatibility.
     /// - Returns: Namespaced storage key.
     private func key(forServiceType serviceType: ServiceType, serviceId: String, windowType: EZWindowType) -> String {
         let baseType = baseServiceType(from: serviceType).rawValue
         if serviceId.isEmpty {
-            return "\(Constants.serviceInfoStorageKey)-\(baseType)-\(windowType.rawValue)"
+            return "\(Constants.serviceInfoStorageKey)-\(baseType)"
         }
-        return "\(Constants.serviceInfoStorageKey)-\(baseType)-\(serviceId)-\(windowType.rawValue)"
+        return "\(Constants.serviceInfoStorageKey)-\(baseType)-\(serviceId)"
     }
 
-    /// Builds the UserDefaults key for persisted service order.
-    /// - Parameter windowType: Window scope.
-    /// - Returns: Namespaced storage key.
+    /// UserDefaults key for the unified service order shared by all windows.
+    /// `windowType` is ignored; kept for call-site compatibility.
     private func serviceTypesKey(of windowType: EZWindowType) -> String {
-        "\(Constants.allServiceTypesKey)-\(windowType.rawValue)"
+        Constants.allServiceTypesKey
     }
 
     private func ensureServiceInfoForAddition(metadata: QueryServiceMetadata, windowType: EZWindowType) {
@@ -656,13 +658,16 @@ final class LocalStorage: NSObject {
         return normalized(info, fallbackType: fallbackType, serviceId: serviceId, windowType: windowType)
     }
 
-    /// Normalizes service info to ensure base type, window type, and UUID are present.
+    /// Normalizes service info to a base type, UUID, and canonical window.
+    ///
+    /// `windowType` remains in the signature for call-site compatibility. Live
+    /// service instances receive their actual window in `updateServiceInfo`.
     /// - Parameters:
     ///   - info: Raw service info object.
     ///   - fallbackType: Service type to apply when missing.
     ///   - serviceId: Service UUID to apply when missing.
-    ///   - windowType: Window scope to apply.
-    /// - Returns: Normalized service info.
+    ///   - windowType: Ignored compatibility parameter.
+    /// - Returns: Normalized shared service info.
     private func normalized(
         _ info: QueryServiceConfiguration,
         fallbackType: ServiceType,
@@ -678,7 +683,7 @@ final class LocalStorage: NSObject {
             type: baseType,
             enabled: info.enabled,
             enabledQuery: info.enabledQuery,
-            windowType: windowType
+            windowType: .fixed
         )
 
         return normalizedInfo
@@ -696,11 +701,97 @@ final class LocalStorage: NSObject {
     }
 }
 
+// MARK: - Legacy per-window migration
+
+extension LocalStorage {
+    /// Migrates legacy per-window storage to unified keys exactly once.
+    ///
+    /// Service order is a stable union: an existing unified order is retained,
+    /// then unseen identifiers are appended from fixed, mini, and main. This
+    /// preserves services that existed in only one old window, including UUID
+    /// instances. Conflicting service state uses the same window precedence.
+    /// Legacy keys remain in place so downgrading stays harmless.
+    fileprivate func migrateLegacyPerWindowStorageIfNeeded() {
+        guard userDefaults.integer(forKey: Constants.serviceStorageVersionKey) < 1 else {
+            return
+        }
+
+        let legacyPriority: [EZWindowType] = [.fixed, .mini, .main]
+        let unifiedTypes = userDefaults.array(
+            forKey: Constants.allServiceTypesKey
+        ) as? [String] ?? []
+        let legacyTypeLists = legacyPriority.compactMap {
+            userDefaults.array(forKey: legacyServiceTypesKey(of: $0)) as? [String]
+        }
+        var seenTypeIds = Set<String>()
+        let migratedTypes = (unifiedTypes + legacyTypeLists.flatMap { $0 }).filter {
+            seenTypeIds.insert($0).inserted
+        }
+
+        if !migratedTypes.isEmpty {
+            userDefaults.set(migratedTypes, forKey: Constants.allServiceTypesKey)
+        }
+
+        for serviceTypeId in migratedTypes {
+            let components = serviceIdentifierComponents(from: serviceTypeId)
+            let baseType = ServiceType(rawValue: components.rawType)
+            let unifiedKey = key(
+                forServiceType: baseType,
+                serviceId: components.uuid,
+                windowType: .fixed
+            )
+            if userDefaults.data(forKey: unifiedKey) == nil {
+                for windowType in legacyPriority {
+                    let legacyDataKey = legacyKey(
+                        forServiceType: baseType,
+                        serviceId: components.uuid,
+                        windowType: windowType
+                    )
+                    if let data = userDefaults.data(forKey: legacyDataKey) {
+                        userDefaults.set(data, forKey: unifiedKey)
+                        break
+                    }
+                }
+            }
+
+            if let info = serviceInfo(
+                withType: baseType,
+                serviceId: components.uuid,
+                windowType: .fixed
+            ) {
+                setServiceInfo(info, windowType: .fixed)
+            }
+        }
+
+        userDefaults.set(1, forKey: Constants.serviceStorageVersionKey)
+    }
+
+    /// Legacy per-window service info key, used only for migration reads.
+    fileprivate func legacyKey(
+        forServiceType serviceType: ServiceType,
+        serviceId: String,
+        windowType: EZWindowType
+    )
+        -> String {
+        let baseType = baseServiceType(from: serviceType).rawValue
+        if serviceId.isEmpty {
+            return "\(Constants.serviceInfoStorageKey)-\(baseType)-\(windowType.rawValue)"
+        }
+        return "\(Constants.serviceInfoStorageKey)-\(baseType)-\(serviceId)-\(windowType.rawValue)"
+    }
+
+    /// Legacy per-window service order key, used only for migration reads.
+    fileprivate func legacyServiceTypesKey(of windowType: EZWindowType) -> String {
+        "\(Constants.allServiceTypesKey)-\(windowType.rawValue)"
+    }
+}
+
 // MARK: - Constants
 
 private enum Constants {
     static let serviceInfoStorageKey = "kServiceInfoStorageKey"
     static let allServiceTypesKey = "kAllServiceTypesKey"
+    static let serviceStorageVersionKey = "kUnifiedServiceStorageVersionKey"
     static let queryCountKey = "kQueryCountKey"
     static let queryCharacterCountKey = "kQueryCharacterCountKey"
     static let appModelTriggerListKey = "kAppModelTriggerListKey"

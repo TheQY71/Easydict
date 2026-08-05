@@ -62,28 +62,6 @@ public class AppleService: QueryService {
         try await translateAsync(text: text, from: from, to: to)
     }
 
-    /// Perform OCR using Apple's Vision-based engine.
-    public override func ocr(
-        _ image: NSImage,
-        from: Language,
-        to: Language
-    ) async throws
-        -> EZOCRResult? {
-        _ = to
-        return try await withCheckedThrowingContinuation { continuation in
-            ocrEnginee.recognizeText(
-                image: image,
-                language: from
-            ) { result, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: result)
-                }
-            }
-        }
-    }
-
     public override func autoConvertTraditionalChinese() -> Bool {
         // Since Apple system translation not support zh-hans <--> zh-hant, so we need to convert it manually.
         true
@@ -157,7 +135,6 @@ public class AppleService: QueryService {
 
     // MARK: Private
 
-    private let ocrEnginee = AppleOCREngine()
     private let languageMapper = AppleLanguageMapper.shared
     private let languageDetector = AppleLanguageDetector(enableDebugLog: true)
     private let speechService = AppleSpeechService()

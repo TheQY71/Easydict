@@ -34,7 +34,11 @@ struct ServiceConfigurationSecretSectionView<Content: View>: View {
     let content: Content
 
     var header: some View {
-        HStack(alignment: .lastTextBaseline) {
+        HStack(spacing: 6) {
+            Image(service.serviceType().rawValue)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 16, height: 16)
             Text(service.name())
             Spacer()
         }

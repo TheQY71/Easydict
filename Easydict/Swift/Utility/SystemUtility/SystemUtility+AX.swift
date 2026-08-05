@@ -78,15 +78,45 @@ extension SystemUtility {
     /// Replace text in current focused text field with optional range support
     /// - Parameters:
     ///   - text: The replacement text
-    func insertTextByAX(_ text: String) {
+    /// Insert text into the focused text field by Accessibility API.
+    ///
+    /// The write is verified rather than trusted: Electron and other non-native
+    /// toolkits accept an `AXSelectedText` write, report success, and never apply
+    /// it to their own editing state. Either the element's value or its selection
+    /// changing proves the text landed.
+    ///
+    /// - Returns: `true` when the insertion actually took effect.
+    @discardableResult
+    func insertTextByAX(_ text: String) -> Bool {
         do {
             guard let element = try focusedTextFieldElement() else {
-                return
+                return false
             }
 
+            let valueBefore: String? = try? element.value()
+            let rangeBefore: CFRange? = try? element.selectedTextRange()
+
             try element.setAttribute(.selectedText, value: text)
+
+            let valueAfter: String? = try? element.value()
+            let rangeAfter: CFRange? = try? element.selectedTextRange()
+
+            if let valueBefore, let valueAfter, valueBefore != valueAfter {
+                return true
+            }
+            // A successful insertion collapses the selection to the caret, so the
+            // range moves even when the new text happens to equal the old.
+            if let rangeBefore, let rangeAfter,
+               rangeBefore.location != rangeAfter.location
+               || rangeBefore.length != rangeAfter.length {
+                return true
+            }
+            // Nothing observable changed. If the element hides both attributes we
+            // cannot tell, so treat that as success and avoid a duplicate paste.
+            return valueBefore == nil && rangeBefore == nil
         } catch {
             logError("Failed to insert text by AX: \(error.localizedDescription)")
+            return false
         }
     }
 

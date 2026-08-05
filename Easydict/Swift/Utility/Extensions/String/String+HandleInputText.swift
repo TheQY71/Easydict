@@ -101,17 +101,15 @@ extension NSString {
     func segmentWords() -> NSString {
         var queryText = self as String
 
-        // If text is a single English word, don't split it
+        // The Apple Dictionary lookup that used to confirm a real English word here
+        // went away with that service. Splitting is already a no-op for a plain
+        // lowercase word, so the check mainly protected mixed-case real words such
+        // as "iPhone", which now get split.
         if (self as String).isSingleWord {
-            let isEnglishWord = AppleDictionary.shared.queryDictionary(
-                forText: queryText, language: .english
-            )
-            if !isEnglishWord {
-                if (self as String).hasQuotesPair {
-                    queryText = queryText.tryToRemoveQuotes()
-                } else {
-                    queryText = queryText.splitCodeText()
-                }
+            if (self as String).hasQuotesPair {
+                queryText = queryText.tryToRemoveQuotes()
+            } else {
+                queryText = queryText.splitCodeText()
             }
         }
 

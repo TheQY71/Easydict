@@ -9,31 +9,31 @@
 import SFSafeSymbols
 import SwiftUI
 
-/// Takes in a Color, a SFSymbol, a text label, and an optional subtitle to quickly create a toggle or picker style for Advanced Tab in Settings.
+/// Row label for the Advanced settings tab: a monochrome symbol chip, a
+/// title, and an optional subtitle. The chip is deliberately colorless so a
+/// long list of rows reads as one calm column instead of a rainbow.
 struct AdvancedTabItemView: View {
-    let color: Color
     let icon: SFSymbol
     let labelText: LocalizedStringKey
     var subtitleText: LocalizedStringKey?
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
-            Rectangle()
-                .fill(color)
-                .frame(width: 20, height: 20, alignment: .center)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-                .overlay(
+            RoundedRectangle(cornerRadius: 5)
+                .fill(Color.primary.opacity(0.06))
+                .frame(width: 20, height: 20)
+                .overlay {
                     Image(systemSymbol: icon)
-                        .font(.system(size: 12))
-                        .foregroundColor(.white)
-                )
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(labelText)
                 if let subtitleText {
                     Text(subtitleText)
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }

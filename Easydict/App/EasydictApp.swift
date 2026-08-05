@@ -8,7 +8,6 @@
 
 import Defaults
 import SettingsAccess
-import Sparkle
 import SwiftUI
 
 // MARK: - EasydictCmpatibilityEntry
@@ -19,7 +18,6 @@ enum EasydictCmpatibilityEntry {
         parseArmguments()
 
         // Capturing crash logs must be placed first.
-        MMCrash.registerHandler()
         AnalyticsService.setupCrashService()
         AnalyticsService.logAppInfo()
 
@@ -30,6 +28,9 @@ enum EasydictCmpatibilityEntry {
         if #available(macOS 26, *) {
             EZPatchWindowServerCornerMask()
         }
+
+        // Install shared stream-service observers before any query window opens.
+        _ = GlobalContext.shared
 
         // app launch
         EasydictApp.main()

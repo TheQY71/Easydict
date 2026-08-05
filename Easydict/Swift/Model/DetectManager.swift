@@ -11,21 +11,18 @@ import SystemConfiguration
 
 // MARK: - DetectManager
 
-/// Manager for text detection and OCR functionality.
-/// Coordinates multiple detection services (Apple, Google, Baidu, Youdao) to provide
-/// accurate language detection and optical character recognition.
+/// Manager for query text language detection.
+/// Coordinates Apple, Google, and Baidu detection services to resolve the source
+/// language of the current query, applying the configured optimization strategy.
 @objc(EZDetectManager)
 @objcMembers
 public final class DetectManager: NSObject {
     // MARK: Lifecycle
 
     /// Initializes a new detect manager with the specified query model.
-    /// - Parameter model: The query model containing text and image data.
+    /// - Parameter model: The query model containing the text to detect.
     public init(model: QueryModel) {
         self.queryModel = model
-
-        self.ocrService = AppleService.shared
-
         super.init()
     }
 
@@ -37,16 +34,13 @@ public final class DetectManager: NSObject {
 
     // MARK: Public
 
-    /// The query model containing text and image data to be processed.
+    /// The query model containing the text to be processed.
     public var queryModel: QueryModel
-
-    /// The OCR service used for text recognition (defaults to AppleService).
-    public private(set) var ocrService: QueryService
 
     // MARK: - Static Factory
 
     /// Creates a new detect manager with the specified query model.
-    /// - Parameter model: The query model containing text and image data.
+    /// - Parameter model: The query model containing the text to detect.
     /// - Returns: A new detect manager instance.
     @objc(managerWithModel:)
     public static func manager(with model: QueryModel) -> DetectManager {
@@ -55,31 +49,7 @@ public final class DetectManager: NSObject {
 
     // MARK: - Public Methods
 
-    /// Performs OCR on the query model's image and then detects the language of the OCR result.
-    /// - Parameter completion: Callback with the updated query model and optional error.
-    public func ocrAndDetectText(completion: @escaping (QueryModel, Error?) -> ()) {
-        ocr { [weak self] ocrResult, error in
-            guard let self else {
-                completion(QueryModel(), error)
-                return
-            }
-
-            guard let ocrResult else {
-                completion(queryModel, error)
-                return
-            }
-
-            queryModel.inputText = ocrResult.mergedText
-            let ocrLanguage = ocrResult.from
-            if ocrLanguage != .auto {
-                queryModel.detectedLanguage = ocrLanguage
-            }
-
-            completion(queryModel, error)
-        }
-    }
-
-    /// Detects the language of the given text using Apple, Google, and/or Baidu services
+    /// Detects the language of the given text using Apple, Google, and/or Baidu services    /// Detects the language of the given text using Apple, Google, and/or Baidu services
     /// based on the configured language detection optimization setting.
     /// - Parameters:
     ///   - queryText: The text to detect the language of.
@@ -151,35 +121,7 @@ public final class DetectManager: NSObject {
         }
     }
 
-    /// Performs OCR on the query model's image.
-    /// - Parameter completion: Callback with the OCR result and optional error.
-    public func ocr(completion: @escaping (EZOCRResult?, Error?) -> ()) {
-        guard queryModel.ocrImage != nil else {
-            let error = QueryError.error(type: .parameter, message: "ocr image cannot be nil")
-            completion(nil, error)
-            return
-        }
-
-        Task { [weak self] in
-            guard let self else {
-                completion(nil, nil)
-                return
-            }
-
-            do {
-                let result = try await ocrService.ocr(queryModel)
-                await MainActor.run {
-                    completion(result, nil)
-                }
-            } catch {
-                await MainActor.run {
-                    completion(nil, error)
-                }
-            }
-        }
-    }
-
-    /// Checks if a system proxy is configured.
+    /// Checks if a system proxy is configured.    /// Checks if a system proxy is configured.
     /// - Returns: `true` if an HTTP proxy is enabled, `false` otherwise.
     @objc(checkIfHasProxy)
     public func checkIfHasProxy() -> Bool {
@@ -205,8 +147,6 @@ public final class DetectManager: NSObject {
 
     private lazy var baiduService: BaiduService = .init()
 
-    private lazy var youdaoService: YoudaoService = .init()
-
     // MARK: - Private Methods
 
     private func canApplyDetectedLanguage(for queryText: String) -> Bool {
@@ -217,81 +157,7 @@ public final class DetectManager: NSObject {
         QueryError.error(type: .parameter, message: "Stale language detection result")
     }
 
-    /// Performs deep OCR: first OCRs with auto-detect, then re-OCRs with the detected language
-    /// if a specific language wasn't already set. This improves accuracy for languages
-    /// where auto-detection may be suboptimal.
-    /// - Parameter completion: Callback with the OCR result and optional error.
-    private func deepOCR(completion: @escaping (EZOCRResult?, Error?) -> ()) {
-        /**
-         System OCR result may be inaccurate when using auto-detect language, such as:
-
-         今日は国際ホッキョクグマの日
-
-         But if we use Japanese to OCR again, the result will be more accurate.
-
-         TODO: If OCR text is too long, maybe we could OCR only part of the image.
-         TODO: If OCR large PDF file, we should alert user to select detected language.
-         */
-        ocr { [weak self] ocrResult, ocrError in
-            guard let self else {
-                completion(nil, ocrError)
-                return
-            }
-
-            guard ocrError == nil else {
-                handleOCRResult(ocrResult, error: ocrError, completion: completion)
-                return
-            }
-
-            // If user has specified OCR language, we don't need to detect and OCR again.
-            guard !queryModel.hasQueryFromLanguage else {
-                handleOCRResult(ocrResult, error: ocrError, completion: completion)
-                return
-            }
-
-            /**
-             Even when confidence is high (e.g., 1.0), that just means the OCR result
-             text is accurate. However, the detected language from OCR may not be accurate,
-             such as 'heel' which may be detected as 'Dutch'. So we need to detect
-             the text language again.
-             */
-            let ocrText = ocrResult?.mergedText ?? ""
-            detectText(ocrText) { [weak self] queryModel, detectError in
-                guard let self else {
-                    completion(ocrResult, detectError)
-                    return
-                }
-
-                guard let ocrResult = ocrResult, detectError == nil else {
-                    completion(ocrResult, detectError)
-                    return
-                }
-
-                let isConfidentLanguage = ocrResult.confidence == 1.0
-                    && ocrResult.from == queryModel.detectedLanguage
-
-                if isConfidentLanguage {
-                    completion(ocrResult, nil)
-                    return
-                }
-
-                Task {
-                    do {
-                        let result = try await self.ocrService.ocr(self.queryModel)
-                        await MainActor.run {
-                            self.handleOCRResult(result, error: nil, completion: completion)
-                        }
-                    } catch {
-                        await MainActor.run {
-                            self.handleOCRResult(ocrResult, error: error, completion: completion)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// Handles the detected language by updating the query model and calling the completion handler.
+    /// Handles the detected language by updating the query model    /// Handles the detected language by updating the query model and calling the completion handler.
     /// - Parameters:
     ///   - language: The detected language.
     ///   - error: Optional error from detection.
@@ -314,49 +180,7 @@ public final class DetectManager: NSObject {
         completion(queryModel, error)
     }
 
-    /// Handles the OCR result, falling back to Youdao OCR if Apple OCR fails and
-    /// Youdao OCR is enabled in settings.
-    /// - Parameters:
-    ///   - ocrResult: The OCR result from the primary service.
-    ///   - error: Optional error from the primary OCR service.
-    ///   - completion: Callback to invoke with the final OCR result and error.
-    private func handleOCRResult(
-        _ ocrResult: EZOCRResult?,
-        error: Error?,
-        completion: @escaping (EZOCRResult?, Error?) -> ()
-    ) {
-        guard let error = error else {
-            completion(ocrResult, nil)
-            return
-        }
-
-        /**
-         Sometimes Apple OCR may fail, such as with Japanese text.
-         If we have set Japanese as the preferred language and OCR again when the
-         OCR result is empty, it seems to work currently, but we don't guarantee
-         it will always work in other languages.
-         */
-
-        guard MyConfiguration.shared.enableYoudaoOCR else {
-            completion(ocrResult, error)
-            return
-        }
-
-        Task {
-            do {
-                let result = try await youdaoService.ocr(queryModel)
-                await MainActor.run {
-                    completion(result, nil)
-                }
-            } catch {
-                await MainActor.run {
-                    completion(ocrResult, error)
-                }
-            }
-        }
-    }
-
-    /// Detects language using Baidu's service as a fallback.
+    /// Detects language using Baidu's service as a fallback.    /// Detects language using Baidu's service as a fallback.
     /// - Parameters:
     ///   - queryText: The text to detect.
     ///   - fallbackLanguage: The language to use if Baidu detection fails.
@@ -448,23 +272,6 @@ extension DetectManager {
                     continuation.resume(throwing: error)
                 } else {
                     continuation.resume(returning: queryModel)
-                }
-            }
-        }
-    }
-
-    /// Asynchronously performs OCR on the query model's image.
-    /// - Returns: The OCR result with recognized text.
-    @nonobjc
-    public func ocr() async throws -> EZOCRResult {
-        try await withCheckedThrowingContinuation { continuation in
-            ocr { ocrResult, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let ocrResult {
-                    continuation.resume(returning: ocrResult)
-                } else {
-                    continuation.resume(throwing: QueryError.error(type: .api, message: "OCR failed"))
                 }
             }
         }

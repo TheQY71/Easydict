@@ -11,65 +11,62 @@ import SwiftUI
 
 // MARK: - AboutTab
 
+/// The About pane of the settings window.
+///
+/// Presents the app icon, name, version, and copyright in a centered
+/// column, followed by a row of links to the repository, the contributor
+/// list, and the acknowledgements window.
 struct AboutTab: View {
     // MARK: Internal
 
     var body: some View {
-        HStack(alignment: .center, spacing: 30) {
+        VStack(spacing: 16) {
             Image(.logo)
                 .resizable()
                 .renderingMode(.original)
-                .frame(width: 100, height: 100)
-                .shadow(color: .gray, radius: 1, x: 0, y: 0.8)
-                .padding(.bottom, 2)
-                .padding(.leading, 16)
-                .padding(.trailing, 16)
+                .frame(width: 96, height: 96)
+                .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
 
-            VStack(alignment: .leading) {
-                VStack(alignment: .leading) {
+            VStack(spacing: 8) {
+                VStack(spacing: 4) {
                     Text(appName)
-                        .font(.system(size: 35, weight: .medium))
-                        .padding(.bottom, 3)
+                        .font(.title2.weight(.semibold))
 
                     Text("current_version \(version)")
-                        .font(.system(size: 13))
-                        .foregroundColor(.gray)
-                        .padding(.bottom, 29)
-
-                    Text(copyrightInfo)
-                        .font(.system(size: 11))
-                        .foregroundColor(.gray)
-                        .padding(.bottom, 20)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
 
-                HStack(spacing: 15) {
-                    Button {
-                        NSWorkspace.shared.open(
-                            URL(string: "https://github.com/tisfeng/Easydict")!
-                        )
-                    } label: {
-                        Label("setting.about.github_link", systemSymbol: .starFill)
-                    }
+                Text(copyrightInfo)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .multilineTextAlignment(.center)
 
-                    Button {
-                        NSWorkspace.shared
-                            .open(
-                                URL(
-                                    string:
-                                    "https://github.com/tisfeng/Easydict/graphs/contributors"
-                                )!
-                            )
-                    } label: {
-                        Label("setting.about.contributor_link", systemSymbol: .person3Fill)
-                    }
-
-                    Button {
-                        HostWindowManager.shared.showAcknowWindow()
-                    } label: {
-                        Label("setting.about.acknowledgements", systemSymbol: .checkmarkSealFill)
-                    }
+            HStack(spacing: 8) {
+                Button {
+                    NSWorkspace.shared.open(
+                        URL(string: "https://github.com/tisfeng/Easydict")!
+                    )
+                } label: {
+                    Label("setting.about.github_link", systemSymbol: .starFill)
                 }
-                .padding(.bottom, 10)
+
+                Button {
+                    NSWorkspace.shared.open(
+                        URL(
+                            string: "https://github.com/tisfeng/Easydict/graphs/contributors"
+                        )!
+                    )
+                } label: {
+                    Label("setting.about.contributor_link", systemSymbol: .person3Fill)
+                }
+
+                Button {
+                    HostWindowManager.shared.showAcknowWindow()
+                } label: {
+                    Label("setting.about.acknowledgements", systemSymbol: .checkmarkSealFill)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)

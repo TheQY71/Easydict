@@ -175,8 +175,7 @@ static const NSTimeInterval EZAutoQueryWhenTextChangedDelay = 0.8;
         self.queryModel.needDetectLanguage = NO;
         NSString *text = [[self copiedText] ns_trim];
         
-        // Do not set text language if text is OCR merged text.
-        if (text.length && !self.queryModel.ocrImage) {
+        if (text.length) {
             self.queryModel.specifiedTextLanguageDict[text] = language;
         }
         if (self.selectedLanguageBlock) {
@@ -430,7 +429,7 @@ static const NSTimeInterval EZAutoQueryWhenTextChangedDelay = 0.8;
     // Escape key
     if (commandSelector == @selector(cancelOperation:)) {
 //        MMLogInfo(@"escape: %@", textView);
-        [[EZWindowManager shared] closeWindowOrExitSreenshot];
+        [[EZWindowManager shared] closeFloatingWindow];
         
         return YES;
     }

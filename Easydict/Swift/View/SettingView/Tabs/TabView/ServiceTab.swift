@@ -8,6 +8,7 @@
 
 import Combine
 import Foundation
+import SFSafeSymbols
 import SwiftUI
 
 // MARK: - ServiceTab
@@ -17,45 +18,40 @@ struct ServiceTab: View {
 
     var body: some View {
         HSplitView {
-            VStack(spacing: 16) {
-                WindowTypePicker(windowType: $viewModel.windowType)
-                    .padding(.horizontal, 12)
-                    .padding(.top)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    List(
-                        selection: Binding(
-                            get: { viewModel.selectedItems },
-                            set: { viewModel.selectItems($0) }
-                        )
-                    ) {
+            VStack(alignment: .leading, spacing: 8) {
+                List(
+                    selection: Binding(
+                        get: { viewModel.selectedItems },
+                        set: { viewModel.selectItems($0) }
+                    )
+                ) {
+                    Section {
                         WindowConfigurationItem()
                             .tag(ServiceTabSelection.windowConfiguration)
+                    }
 
+                    Section {
                         ServiceItems()
+                    } header: {
+                        Text("setting.service.list.services_header")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                    .listStyle(.plain)
-                    .scrollIndicators(.never)
-                    .borderedCard()
-                    .onReceive(serviceHasUpdatedNotification) { _ in
-                        viewModel.updateServices()
-                    }
-
-                    ServiceListControls()
-                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(.horizontal, 12)
-                .padding(.bottom, 12)
+                .listStyle(.plain)
+                .scrollIndicators(.never)
+                .borderedCard()
+                .onReceive(serviceHasUpdatedNotification) { _ in
+                    viewModel.updateServices()
+                }
             }
+            .padding(12)
             .frame(minWidth: 270, maxWidth: 320, maxHeight: .infinity)
 
             ServiceDetailView()
                 .layoutPriority(1)
         }
         .environmentObject(viewModel)
-        .onChange(of: viewModel.windowType) { _ in
-            viewModel.handleWindowTypeChange()
-        }
     }
 
     // MARK: Private
@@ -75,6 +71,9 @@ enum ServiceTabSelection: Hashable {
 
 // MARK: - ServiceTabViewModel
 
+/// Backs the service settings shared by every query window. `windowType`
+/// selects the runtime context used to construct detail-view services; it no
+/// longer scopes persistence.
 @MainActor
 class ServiceTabViewModel: ObservableObject {
     // MARK: Lifecycle
@@ -82,37 +81,23 @@ class ServiceTabViewModel: ObservableObject {
     init(windowType: EZWindowType = .fixed) {
         self.windowType = windowType
         self.serviceItems = Self.loadServiceItems(windowType)
-        self.availableServiceItems = Self.loadAvailableServiceItems(windowType)
     }
 
     // MARK: Internal
 
     @Published private(set) var serviceItems: [ServiceListItem]
 
-    @Published private(set) var availableServiceItems: [ServiceListItem]
-
     @Published private(set) var selectedService: QueryService?
 
-    @Published var windowType: EZWindowType
+    /// Canonical runtime context used by the unified settings UI.
+    let windowType: EZWindowType
 
     @Published private(set) var selectedItems: Set<ServiceTabSelection> = [
         .windowConfiguration,
     ]
 
-    var canRemoveSelectedServices: Bool {
-        let selectedCount = selectedServiceItems.count
-        return selectedCount > 0 && selectedCount < serviceItems.count
-    }
-
-    /// Refresh services when the window type changes.
-    func handleWindowTypeChange() {
-        setSelection([.windowConfiguration])
-        updateServices()
-    }
-
     func updateServices() {
         serviceItems = Self.loadServiceItems(windowType)
-        availableServiceItems = Self.loadAvailableServiceItems(windowType)
 
         let availableSelections = Set(
             serviceItems.map { ServiceTabSelection.service($0.id) }
@@ -134,50 +119,6 @@ class ServiceTabViewModel: ObservableObject {
         updateServices()
     }
 
-    func addServices(_ items: [ServiceListItem]) {
-        var addedTypeIds: [String] = []
-        var addedItems: [ServiceListItem] = []
-
-        for item in items {
-            let serviceTypeId = item.createsNewInstance
-                ? "\(item.type.rawValue)#\(UUID().uuidString)"
-                : item.id
-            guard LocalStorage.shared().addServiceType(
-                serviceTypeId,
-                windowType: windowType
-            ) else {
-                continue
-            }
-            addedTypeIds.append(serviceTypeId)
-            addedItems.append(item)
-        }
-
-        guard let selectedTypeId = addedTypeIds.last else { return }
-        setSelection([.service(selectedTypeId)])
-        postUpdateServiceNotification()
-        reloadLLMSubscribersIfNeeded(for: addedItems)
-        updateServices()
-    }
-
-    func removeSelectedServices() {
-        let selectedItems = selectedServiceItems
-        guard !selectedItems.isEmpty, selectedItems.count < serviceItems.count else { return }
-
-        let selectedTypeIds = Set(selectedItems.map(\.id))
-        let remainingTypeIds = serviceItems
-            .map(\.id)
-            .filter { !selectedTypeIds.contains($0) }
-        LocalStorage.shared().setAllServiceTypes(
-            remainingTypeIds,
-            windowType: windowType
-        )
-
-        setSelection([.windowConfiguration])
-        postUpdateServiceNotification()
-        reloadLLMSubscribersIfNeeded(for: selectedItems)
-        updateServices()
-    }
-
     func selectItems(_ items: Set<ServiceTabSelection>) {
         let addedItems = items.subtracting(selectedItems)
         var selection = items
@@ -194,17 +135,13 @@ class ServiceTabViewModel: ObservableObject {
     }
 
     func setServiceEnabled(_ enabled: Bool, for item: ServiceListItem) {
+        LocalStorage.shared().setServiceEnabled(
+            enabled,
+            serviceTypeId: item.id,
+            windowType: windowType
+        )
         if selectedService?.serviceTypeWithUniqueIdentifier() == item.id {
             selectedService?.enabled = enabled
-            if let selectedService {
-                LocalStorage.shared().setService(selectedService, windowType: windowType)
-            }
-        } else {
-            LocalStorage.shared().setServiceEnabled(
-                enabled,
-                serviceTypeId: item.id,
-                windowType: windowType
-            )
         }
 
         postUpdateServiceNotification()
@@ -218,16 +155,15 @@ class ServiceTabViewModel: ObservableObject {
             return
         }
 
-        let validationWindowType = windowType
         guard let service = LocalStorage.shared().service(
             item.id,
-            windowType: validationWindowType
+            windowType: windowType
         ) else {
             return
         }
         let result = await service.validate()
         guard LocalStorage.shared()
-            .allServiceTypes(validationWindowType)
+            .allServiceTypes(windowType)
             .contains(item.id) else {
             return
         }
@@ -235,55 +171,38 @@ class ServiceTabViewModel: ObservableObject {
             throw error
         }
         service.enabled = true
-        LocalStorage.shared().setService(service, windowType: validationWindowType)
-        NotificationCenter.default.postServiceUpdateNotification(
-            windowType: validationWindowType
+        LocalStorage.shared().setServiceEnabled(
+            true,
+            serviceTypeId: item.id,
+            windowType: windowType
         )
+        postUpdateServiceNotification()
         GlobalContext.shared.reloadLLMServicesSubscribers()
-        guard windowType == validationWindowType else { return }
         selectedService = selectedItem == .service(item.id) ? service : selectedService
         updateServices()
     }
 
     func postUpdateServiceNotification() {
-        NotificationCenter.default.postServiceUpdateNotification(windowType: windowType)
+        NotificationCenter.default.postServiceUpdateNotification()
     }
 
     // MARK: Private
 
     private var selectedItem: ServiceTabSelection? = .windowConfiguration
 
-    private var selectedServiceItems: [ServiceListItem] {
-        serviceItems.filter {
-            selectedItems.contains(.service($0.id))
-        }
-    }
-
     private static func loadServiceItems(_ windowType: EZWindowType) -> [ServiceListItem] {
         serviceItems(from: LocalStorage.shared().allServiceTypes(windowType), windowType: windowType)
     }
 
-    private static func loadAvailableServiceItems(_ windowType: EZWindowType) -> [ServiceListItem] {
-        serviceItems(
-            from: LocalStorage.shared().availableServiceTypeIDs(windowType: windowType),
-            windowType: windowType,
-            forAddition: true
-        )
-    }
-
     private static func serviceItems(
         from serviceTypeIds: [String],
-        windowType: EZWindowType,
-        forAddition: Bool = false
+        windowType: EZWindowType
     )
         -> [ServiceListItem] {
         serviceTypeIds.compactMap { typeId in
             guard let metadata = QueryServiceFactory.shared.metadata(withTypeId: typeId) else {
                 return nil
             }
-            let createsNewInstance = forAddition
-                && metadata.allowsMultipleInstances
-                && metadata.uuid.isEmpty
             let info = LocalStorage.shared().serviceInfo(
                 withType: metadata.serviceType,
                 serviceId: metadata.uuid,
@@ -292,13 +211,10 @@ class ServiceTabViewModel: ObservableObject {
             return ServiceListItem(
                 id: typeId,
                 type: metadata.serviceType,
-                name: createsNewInstance
-                    ? NSLocalizedString("custom_openai", comment: "")
-                    : metadata.title,
+                name: metadata.title,
                 enabled: info?.enabled == true,
                 requirement: metadata.apiKeyRequirement,
-                isStream: metadata.isStream,
-                createsNewInstance: createsNewInstance
+                isStream: metadata.isStream
             )
         }
     }
@@ -342,8 +258,7 @@ class ServiceTabViewModel: ObservableObject {
     }
 
     private func reloadLLMSubscribersIfNeeded(for items: [ServiceListItem]) {
-        // Stream configuration observers cover all window memberships, so any
-        // window can add or remove a service that changes the observed union.
+        // Stream configuration observers follow the unified service list.
         guard items.contains(where: { $0.isStream }) else { return }
         GlobalContext.shared.reloadLLMServicesSubscribers()
     }
@@ -358,20 +273,25 @@ struct ServiceListItem: Identifiable {
     let enabled: Bool
     let requirement: ServiceAPIKeyRequirement
     let isStream: Bool
-    let createsNewInstance: Bool
 }
 
 // MARK: - WindowConfigurationItem
 
 private struct WindowConfigurationItem: View {
     var body: some View {
-        Text("setting.service.window_configuration")
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 8)
-            .contentShape(Rectangle())
-            .listRowSeparator(.hidden)
-            .listRowInsets(.init())
+        HStack(spacing: 6) {
+            Image(systemSymbol: .macwindow)
+                .font(.system(size: 13))
+                .frame(width: 22, height: 22)
+            Text("setting.service.window_configuration")
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .contentShape(Rectangle())
+        .listRowSeparator(.hidden)
+        .listRowInsets(.init())
     }
 }
 
@@ -389,17 +309,17 @@ private struct ServiceDetailView: View {
                     }
                     .formStyle(.grouped)
                 } else {
-                    VStack {
-                        Spacer()
-
+                    VStack(spacing: 8) {
+                        Image(systemSymbol: .checkmarkCircle)
+                            .font(.system(size: 24, weight: .light))
+                            .foregroundStyle(.quaternary)
                         Text("setting.service.detail.no_configuration \(service.name())")
-
-                        Spacer()
+                            .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             } else {
-                WindowConfigurationView(windowType: viewModel.windowType)
+                WindowConfigurationView()
             }
         }
     }
@@ -407,23 +327,4 @@ private struct ServiceDetailView: View {
     // MARK: Private
 
     @EnvironmentObject private var viewModel: ServiceTabViewModel
-}
-
-// MARK: - WindowTypePicker
-
-private struct WindowTypePicker: View {
-    @Binding var windowType: EZWindowType
-
-    var body: some View {
-        Picker(selection: $windowType) {
-            ForEach([EZWindowType]([.fixed, .mini, .main]), id: \.rawValue) { windowType in
-                Text(windowType.localizedStringResource)
-                    .tag(windowType)
-            }
-        } label: {
-            EmptyView()
-        }
-        .labelsHidden()
-        .pickerStyle(.segmented)
-    }
 }

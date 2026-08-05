@@ -21,6 +21,9 @@
 
     [ShortcutManager.shared setupShortcut];
 
+    // Left-click the menu bar icon for quick chat, right-click for the menu.
+    [EZMenuBarClickRouter.shared install];
+
     [EZWindowManager.shared showMainWindowIfNeeded];
     
     [self registerRouters];
