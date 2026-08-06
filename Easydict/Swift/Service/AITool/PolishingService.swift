@@ -81,7 +81,7 @@ class PolishingService: AIToolService {
         return AsyncThrowingStream { [weak self] continuation in
             let task = Task {
                 do {
-                    var limiter = PolishingLengthLimiter(
+                    var outputGuard = PolishingOutputGuard(
                         sourceLength: text.count,
                         ratioPercent: ratioPercent
                     )
@@ -89,20 +89,18 @@ class PolishingService: AIToolService {
                     for try await content in contentStream {
                         try Task.checkCancellation()
 
-                        guard !limiter.hasReachedLimit else {
-                            self?.cancelStream()
-                            continuation.finish()
-                            return
+                        let decision = outputGuard.consume(content)
+                        if !decision.content.isEmpty {
+                            continuation.yield(decision.content)
                         }
 
-                        let limitedContent = limiter.limit(content)
-                        if !limitedContent.isEmpty {
-                            continuation.yield(limitedContent)
-                        }
-
-                        if limitedContent.count < content.count || limiter.hasReachedLimit {
+                        if let stopReason = decision.stopReason {
                             self?.cancelStream()
-                            continuation.finish()
+                            if stopReason == .repetition {
+                                continuation.finish(throwing: PolishingOutputError.repetition)
+                            } else {
+                                continuation.finish()
+                            }
                             return
                         }
                     }
@@ -200,6 +198,183 @@ struct PolishingLengthLimiter {
         let limitedContent = String(content.prefix(maxLength - emittedLength))
         emittedLength += limitedContent.count
         return limitedContent
+    }
+}
+
+// MARK: - PolishingOutputGuard
+
+/// Stops polishing output at its character budget or when the model falls into
+/// a consecutive repetition loop. Repeated punctuation alone is ignored so
+/// separators such as Markdown rules do not terminate otherwise valid output.
+struct PolishingOutputGuard {
+    // MARK: Lifecycle
+
+    init(sourceLength: Int, ratioPercent: Int) {
+        self.limiter = PolishingLengthLimiter(
+            sourceLength: sourceLength,
+            ratioPercent: ratioPercent
+        )
+    }
+
+    // MARK: Internal
+
+    private(set) var acceptedText = ""
+
+    mutating func consume(_ content: String) -> (
+        content: String,
+        stopReason: PolishingOutputStopReason?
+    ) {
+        guard !limiter.hasReachedLimit else { return ("", .lengthLimit) }
+
+        let limitedContent = limiter.limit(content)
+        let candidate = acceptedText + limitedContent
+
+        if let repetitionStart = repetitionStart(in: candidate) {
+            let safeLength = max(0, repetitionStart - acceptedText.count)
+            let safeContent = String(limitedContent.prefix(safeLength))
+            acceptedText += safeContent
+            return (safeContent, .repetition)
+        }
+
+        if hasConcentratedTokenPool(candidate) || hasLowNGramNovelty(candidate) {
+            return ("", .repetition)
+        }
+
+        acceptedText = candidate
+        let reachedLengthLimit = limitedContent.count < content.count
+            || limiter.hasReachedLimit
+        return (limitedContent, reachedLengthLimit ? .lengthLimit : nil)
+    }
+
+    // MARK: Private
+
+    private var limiter: PolishingLengthLimiter
+
+    /// Detects early degeneration where most output is assembled from a small
+    /// pool of recurring words, numbers, and Han characters.
+    private func hasConcentratedTokenPool(_ text: String) -> Bool {
+        let windowSize = 60
+        let tokens = outputTokens(text)
+        guard tokens.count >= windowSize else { return false }
+
+        let window = tokens.suffix(windowSize)
+        let frequencies = Dictionary(grouping: window, by: { $0 }).mapValues(\.count)
+        let uniqueRatio = Double(frequencies.count) / Double(windowSize)
+        let commonCount = frequencies.values.sorted(by: >).prefix(10).reduce(0, +)
+        let commonRatio = Double(commonCount) / Double(windowSize)
+        return uniqueRatio <= 0.35 && commonRatio >= 0.70
+    }
+
+    private func outputTokens(_ text: String) -> [String] {
+        var tokens: [String] = []
+        var asciiToken = ""
+
+        func flushASCIIToken() {
+            guard !asciiToken.isEmpty else { return }
+            tokens.append(asciiToken.lowercased())
+            asciiToken = ""
+        }
+
+        for character in text {
+            if character.isASCII, character.isLetter || character.isNumber {
+                asciiToken.append(character)
+            } else {
+                flushASCIIToken()
+                if isHanCharacter(character) {
+                    tokens.append(String(character))
+                }
+            }
+        }
+        flushASCIIToken()
+        return tokens
+    }
+
+    private func isHanCharacter(_ character: Character) -> Bool {
+        guard character.unicodeScalars.count == 1,
+              let value = character.unicodeScalars.first?.value
+        else {
+            return false
+        }
+        return (0x3400 ... 0x4DBF).contains(value)
+            || (0x4E00 ... 0x9FFF).contains(value)
+            || (0xF900 ... 0xFAFF).contains(value)
+            || (0x20000 ... 0x323AF).contains(value)
+    }
+
+    /// Detects a shuffled loop where a small token pool is repeatedly recombined
+    /// rather than emitted as one exact periodic suffix.
+    private func hasLowNGramNovelty(_ text: String) -> Bool {
+        let windowSize = 160
+        let minimumLength = 120
+        let characters = Array(text.suffix(windowSize))
+        guard characters.count >= minimumLength else { return false }
+
+        return nGramNovelty(characters, length: 3) <= 0.55
+            && nGramNovelty(characters, length: 4) <= 0.68
+    }
+
+    private func nGramNovelty(_ characters: [Character], length: Int) -> Double {
+        let count = characters.count - length + 1
+        guard count > 0 else { return 1 }
+
+        var nGrams = Set<String>()
+        for index in 0 ..< count {
+            nGrams.insert(String(characters[index ..< index + length]))
+        }
+        return Double(nGrams.count) / Double(count)
+    }
+
+    /// Returns the start of a repeated suffix, measured in `Character` values.
+    private func repetitionStart(in text: String) -> Int? {
+        let windowSize = 160
+        let characters = Array(text.suffix(windowSize))
+        let offset = text.count - characters.count
+        let maxUnitLength = min(32, characters.count / 3)
+        guard maxUnitLength > 0 else { return nil }
+
+        for unitLength in 1 ... maxUnitLength {
+            let repeatCount = unitLength == 1 ? 6 : (unitLength <= 4 ? 4 : 3)
+            let repeatedLength = unitLength * repeatCount
+            guard repeatedLength <= characters.count else { continue }
+
+            let patternStart = characters.count - unitLength
+            let pattern = Array(characters[patternStart...])
+            guard pattern.contains(where: { $0.isLetter || $0.isNumber }) else {
+                continue
+            }
+
+            let repeatedStart = characters.count - repeatedLength
+            let repeated = characters[repeatedStart...]
+            let isLoop = repeated.enumerated().allSatisfy { index, character in
+                character == pattern[index % unitLength]
+            }
+            if isLoop {
+                return offset + repeatedStart
+            }
+        }
+
+        return nil
+    }
+}
+
+// MARK: - PolishingOutputStopReason
+
+/// Reasons the client stops a polishing response before the provider finishes.
+enum PolishingOutputStopReason {
+    case lengthLimit
+    case repetition
+}
+
+// MARK: - PolishingOutputError
+
+/// Signals model degeneration so text-replacement actions preserve the source.
+enum PolishingOutputError: LocalizedError {
+    case repetition
+
+    // MARK: Internal
+
+    var errorDescription: String? {
+        "Polishing stopped because the model output became repetitive."
     }
 }
 

@@ -50,30 +50,47 @@ class ActionManager: NSObject {
     }
 
     private let systemUtility = SystemUtility.shared
+    private var isReplacingText = false
 
     // MARK: - Core Action Methods
 
-    /// Common method to execute text replacement actions
+    /// Common method to execute text replacement actions. Only one replacement
+    /// may run at a time so repeated shortcut events cannot start parallel streams.
+    @MainActor
     private func executeTextReplacementAction(_ type: ProcessingType) async {
-        // Replacing text inside Easydict itself would type the result back into our
-        // own window while the stream is still running — the paste fallback fires
-        // once per chunk, so the app spends the whole answer pasting into itself.
-        guard frontmostAppBundleID != Bundle.main.bundleIdentifier else {
+        guard !isReplacingText else {
+            logInfo("Text replacement is already running; ignore repeated \(type) action")
+            return
+        }
+        isReplacingText = true
+        defer { isReplacingText = false }
+
+        let targetBundleID = frontmostAppBundleID
+        guard targetBundleID != Bundle.main.bundleIdentifier else {
             logInfo("Frontmost app is Easydict itself, skipping \(type)")
             return
         }
 
-        let enableSelectAll = Defaults[.autoSelectAllTextFieldText]
-        let elementInfo = await systemUtility.focusedElementInfo(enableSelectAll: enableSelectAll)
+        let enableSelectAll = type == .translate
+            && Defaults[.autoSelectAllTextFieldText]
+        let elementInfo = await systemUtility.focusedElementInfo(
+            enableSelectAll: enableSelectAll
+        )
 
-        // Prepare translation request
-        var queryText = elementInfo.focusedText
-        if queryText?.isEmpty ?? true {
-            queryText = await systemUtility.getSelectedText()
+        let queryText: String?
+        switch type {
+        case .translate:
+            var text = elementInfo.focusedText
+            if text?.isEmpty ?? true {
+                text = await systemUtility.getSelectedText()
+            }
+            queryText = text
+        case .polish:
+            queryText = elementInfo.selectedText
         }
 
         guard let queryText, !queryText.isEmpty else {
-            logInfo("No text selected or focused for \(type), skipping action")
+            logInfo("No text selected for \(type), skipping action")
             return
         }
 
@@ -83,14 +100,19 @@ class ActionManager: NSObject {
         }
 
         // Execute the streaming service
-        await performStreamingService(request: request, elementInfo: elementInfo)
+        await performStreamingService(
+            request: request,
+            elementInfo: elementInfo,
+            sourceText: queryText,
+            targetBundleID: targetBundleID
+        )
     }
 
     // MARK: - Helper Methods
 
     /// Prepare translation request from text field information
     /// - Parameters:
-    ///   - elementInfo: Information about the current focused element
+    ///   - queryText: Source text to process.
     ///   - type: The type of processing (translate or polish)
     /// - Returns: A configured TranslationRequest or nil if preparation fails
     private func prepareTranslationRequest(
@@ -132,7 +154,9 @@ class ActionManager: NSObject {
     /// Perform translation or polishing using a streaming service
     private func performStreamingService(
         request: TranslationRequest,
-        elementInfo: FocusedElementInfo
+        elementInfo: FocusedElementInfo,
+        sourceText: String,
+        targetBundleID: String
     ) async {
         guard let service = QueryServiceFactory.shared.service(withTypeId: request.serviceType)
         else {
@@ -151,7 +175,12 @@ class ActionManager: NSObject {
             try Task.checkCancellation()
             let contentStream = try await streamService.contentStreamTranslate(request: request)
             try Task.checkCancellation()
-            await replaceTextWithStream(contentStream, elementInfo: elementInfo)
+            await replaceTextWithStream(
+                contentStream,
+                elementInfo: elementInfo,
+                sourceText: sourceText,
+                targetBundleID: targetBundleID
+            )
         } catch {
             if Task.isCancelled {
                 logInfo("Streaming task cancelled")
@@ -161,47 +190,75 @@ class ActionManager: NSObject {
         }
     }
 
-    /// Replace text with streaming data
+    /// Collects the stream and replaces the selected text once it completes.
+    /// Keeping the original selection intact prevents partial or degenerate
+    /// model output from being typed into the target application chunk by chunk.
     @MainActor
     private func replaceTextWithStream(
         _ contentStream: AsyncThrowingStream<String, Error>,
-        elementInfo: FocusedElementInfo
+        elementInfo: FocusedElementInfo,
+        sourceText: String,
+        targetBundleID: String
     ) async {
-        logInfo("Replacing text with streaming content")
-
-        // For avoding polluting user pasteboard content, we need to save and restore it when AX is not supported.
-        let pasteboard = NSPasteboard.general
-        var snapshotItems: [NSPasteboardItem]?
-
-        let isSupportedAX = elementInfo.isSupportedAXElement
-        if !isSupportedAX {
-            snapshotItems = pasteboard.backupItems()
-        }
+        logInfo("Collecting streaming content before replacing text")
 
         do {
-            let textStrategy = systemUtility.textStrategies(for: elementInfo)
-
-            /**
-             - Note:
-             For GitHub web text area, if select all and insert empty string,
-             it will clear the text area and lose focus.
-             So we do not insert empty string.
-             */
-
-            var reuslt = ""
+            var result = ""
             for try await content in contentStream where !content.isEmpty {
-                //                logInfo("Received streaming content chunk: \(content.prettyJSONString)")
-
-                reuslt += content
-                await systemUtility.insertText(content, using: textStrategy)
+                result += content
             }
-            logInfo("Final replacement result: \(reuslt.prettyJSONString)")
-        } catch {
-            logError("Streaming replacement failed: \(error)")
-        }
 
-        if let snapshotItems, !isSupportedAX {
-            pasteboard.restoreItems(snapshotItems)
+            guard !result.isEmpty else {
+                logInfo("Streaming replacement returned no content")
+                return
+            }
+
+            guard frontmostAppBundleID == targetBundleID else {
+                logInfo("Target application changed while streaming; preserve original text")
+                return
+            }
+
+            let currentElementInfo = await systemUtility.focusedElementInfo()
+            guard isSameReplacementTarget(
+                original: elementInfo,
+                current: currentElementInfo,
+                sourceText: sourceText
+            ) else {
+                logInfo("Target selection changed while streaming; preserve original text")
+                return
+            }
+
+            let textStrategies = systemUtility.textStrategies(for: elementInfo)
+            let pasteboard = NSPasteboard.general
+            let snapshotItems = elementInfo.isSupportedAXElement ? nil : pasteboard.backupItems()
+
+            await systemUtility.insertText(result, using: textStrategies)
+
+            if let snapshotItems {
+                pasteboard.restoreItems(snapshotItems)
+            }
+            logInfo("Final replacement result: \(result.prettyJSONString)")
+        } catch {
+            logError("Streaming replacement failed without changing original text: \(error)")
         }
+    }
+
+    /// Confirms that the focused text and any meaningful AX selection are the
+    /// same target captured before the network request started.
+    private func isSameReplacementTarget(
+        original: FocusedElementInfo,
+        current: FocusedElementInfo,
+        sourceText: String
+    )
+        -> Bool {
+        guard current.focusedText == sourceText else { return false }
+        guard let originalRange = original.selectedRange,
+              originalRange.length > 0
+        else {
+            return true
+        }
+        guard let currentRange = current.selectedRange else { return false }
+        return originalRange.location == currentRange.location
+            && originalRange.length == currentRange.length
     }
 }
