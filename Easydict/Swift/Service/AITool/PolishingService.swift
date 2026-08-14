@@ -44,6 +44,10 @@ class PolishingService: AIToolService {
         deepSeekService.apiKey
     }
 
+    override var apiKeyEnvironmentServiceType: ServiceType {
+        .deepSeek
+    }
+
     override var endpoint: String {
         deepSeekService.endpoint
     }

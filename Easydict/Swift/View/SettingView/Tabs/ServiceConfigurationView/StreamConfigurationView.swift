@@ -100,11 +100,14 @@ struct StreamConfigurationView: View {
             }
 
             if showAPIKeySection {
-                SecureInputCell(
-                    textFieldTitleKey: "service.configuration.openai.api_key.title",
-                    key: service.apiKeyKey,
-                    placeholder: service.apiKeyPlaceholder
-                )
+                VStack(alignment: .leading, spacing: 5) {
+                    SecureInputCell(
+                        textFieldTitleKey: "service.configuration.openai.api_key.title",
+                        key: service.apiKeyKey,
+                        placeholder: service.apiKeyPlaceholder
+                    )
+                    apiKeyEnvironmentHint
+                }
             }
 
             if showEndpointSection {
@@ -258,10 +261,25 @@ struct StreamConfigurationView: View {
         isEditable && service.canFetchRemoteModels
     }
 
+    private var activeAPIKeyEnvironmentVariable: String? {
+        _ = apiKey
+        return service.activeAPIKeyEnvironmentVariable
+    }
+
+    private var activeAPIKeyKeychainService: String? {
+        _ = apiKey
+        return service.activeAPIKeyKeychainService
+    }
+
+    private var effectiveAPIKey: String {
+        _ = apiKey
+        return service.apiKey
+    }
+
     private var isFetchModelsDisabled: Bool {
         guard service.canFetchRemoteModels else { return true }
         if !isEditable { return true }
-        if service.apiKeyRequirement().needsUserProvidedKey, apiKey.trim().isEmpty {
+        if service.apiKeyRequirement().needsUserProvidedKey, effectiveAPIKey.trim().isEmpty {
             return true
         }
         return shouldValidateFetchEndpoint && !isValidEndpoint(service.endpoint)
@@ -271,7 +289,7 @@ struct StreamConfigurationView: View {
         guard service.canFetchRemoteModels else {
             return "service.configuration.fetch_models.title"
         }
-        if service.apiKeyRequirement().needsUserProvidedKey, apiKey.trim().isEmpty {
+        if service.apiKeyRequirement().needsUserProvidedKey, effectiveAPIKey.trim().isEmpty {
             return "missing_secret_key_error"
         }
         if shouldValidateFetchEndpoint, !isValidEndpoint(service.endpoint) {
@@ -293,6 +311,60 @@ struct StreamConfigurationView: View {
     private var existingModelIDs: [String] {
         let storedModels = Defaults[service.supportedModelsKey]
         return service.validModels(from: storedModels)
+    }
+
+    @ViewBuilder private var apiKeyEnvironmentHint: some View {
+        if let keychainService = activeAPIKeyKeychainService {
+            Text(
+                String.localizedStringWithFormat(
+                    NSLocalizedString(
+                        "service.configuration.api_key.keychain_loaded %@",
+                        comment: ""
+                    ),
+                    keychainService
+                )
+            )
+            .font(.footnote)
+            .foregroundStyle(.green)
+        } else if let variable = activeAPIKeyEnvironmentVariable {
+            Text(
+                String.localizedStringWithFormat(
+                    NSLocalizedString(
+                        "service.configuration.api_key.environment_loaded %@",
+                        comment: ""
+                    ),
+                    variable
+                )
+            )
+            .font(.footnote)
+            .foregroundStyle(.green)
+        } else if service.apiKeyEnvironmentVariableNames.count == 2 {
+            Text(
+                String.localizedStringWithFormat(
+                    NSLocalizedString(
+                        "service.configuration.api_key.keychain_hint %@ %@",
+                        comment: ""
+                    ),
+                    service.apiKeyKeychainServiceNames[0],
+                    service.apiKeyKeychainServiceNames[1]
+                )
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+
+            Text(
+                String.localizedStringWithFormat(
+                    NSLocalizedString(
+                        "service.configuration.api_key.environment_hint %@ %@",
+                        comment: ""
+                    ),
+                    service.apiKeyEnvironmentVariableNames[0],
+                    service.apiKeyEnvironmentVariableNames[1]
+                )
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+        }
     }
 
     private func updateModels(remoteModelIDs: [String], selectedModelIDs: [String]) {

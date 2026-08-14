@@ -311,11 +311,18 @@ public class StreamService: QueryService {
     }
 
     var apiKey: String {
-        Defaults[apiKeyKey]
+        let storedKey = Defaults[apiKeyKey].trim()
+        guard storedKey.isEmpty else { return storedKey }
+        return apiKeyFromKeychain ?? apiKeyFromEnvironment ?? ""
     }
 
     var apiKeyKey: Defaults.Key<String> {
         stringDefaultsKey(.apiKey)
+    }
+
+    /// Service identifier used to derive API key environment variable names.
+    var apiKeyEnvironmentServiceType: ServiceType {
+        serviceType()
     }
 
     var endpoint: String {

@@ -126,7 +126,7 @@ final class QueryServiceFactory: NSObject {
     private let serviceRegistrations: [ServiceRegistration] = [
         .init(.youdao, YoudaoService.self, "youdao_dict", apiKeyRequirement: .none),
         .init(.deepSeek, DeepSeekService.self, "deepseek_translate"),
-        .init(.polishing, PolishingService.self, "polishing_service", apiKeyRequirement: .builtIn),
+        .init(.polishing, PolishingService.self, "polishing_service"),
 
         // Not offered as translation services; registered because other subsystems
         // resolve them through this factory: Apple/Google/Baidu back language

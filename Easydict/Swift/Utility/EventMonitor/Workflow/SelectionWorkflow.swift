@@ -140,7 +140,10 @@ final class SelectionWorkflow {
         } catch {
             logError("Failed to get selected text from browser: \(error)")
             if !accessibilityFallback.isEmpty {
-                logInfo("Fallback to use Accessibility selected text: \(accessibilityFallback)")
+                logInfo(
+                    "Fallback to Accessibility selected text with "
+                        + "\(accessibilityFallback.count) characters"
+                )
                 let isEditable = systemUtility?.isFocusedTextField() ?? false
                 isSelectedTextEditable = isEditable
                 completion(.init(
@@ -211,7 +214,10 @@ final class SelectionWorkflow {
         Task {
             do {
                 let selectedText = try await systemUtility?.getSelectedText(strategy: .shortcut)
-                logInfo("Get selected text by simulated key success: \(selectedText ?? "")")
+                logInfo(
+                    "Get selected text by simulated key success with "
+                        + "\(selectedText?.count ?? 0) characters"
+                )
                 let isEditable = systemUtility?.isFocusedTextField() ?? false
                 isSelectedTextEditable = isEditable
                 completion(.init(
@@ -288,7 +294,10 @@ final class SelectionWorkflow {
             guard let self else { return }
             let trimmed = text?.trim() ?? ""
             if !trimmed.isEmpty {
-                logInfo("Get selected text by menu bar action copy success: \(trimmed)")
+                logInfo(
+                    "Get selected text by menu bar action copy success with "
+                        + "\(trimmed.count) characters"
+                )
                 let isEditable = systemUtility?.isFocusedTextField() ?? false
                 isSelectedTextEditable = isEditable
                 completion(.init(

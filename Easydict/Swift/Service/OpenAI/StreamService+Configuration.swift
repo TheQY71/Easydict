@@ -8,8 +8,88 @@
 
 import Defaults
 import Foundation
+import Security
 
 extension StreamService {
+    /// Environment variables accepted as fallback API key sources.
+    /// The Easydict-scoped name wins over the provider's conventional name.
+    var apiKeyEnvironmentVariableNames: [String] {
+        let identifier = apiKeyEnvironmentServiceType.rawValue.unicodeScalars
+            .filter(CharacterSet.alphanumerics.contains)
+            .map { String($0).uppercased() }
+            .joined()
+        guard !identifier.isEmpty else { return [] }
+        return [
+            "EASYDICT_\(identifier)_API_KEY",
+            "\(identifier)_API_KEY",
+        ]
+    }
+
+    /// Name of the environment variable currently providing the effective key.
+    var activeAPIKeyEnvironmentVariable: String? {
+        guard Defaults[apiKeyKey].trim().isEmpty else { return nil }
+        return apiKeyEnvironmentVariableNames.first { variable in
+            ProcessInfo.processInfo.environment[variable]?.trim().isEmpty == false
+        }
+    }
+
+    /// Returns an environment key without persisting it in user defaults.
+    var apiKeyFromEnvironment: String? {
+        guard let variable = activeAPIKeyEnvironmentVariable else { return nil }
+        return ProcessInfo.processInfo.environment[variable]?.trim()
+    }
+
+    /// Keychain services accepted as fallback API key sources.
+    var apiKeyKeychainServiceNames: [String] {
+        apiKeyEnvironmentVariableNames.map { "shell-api:\($0)" }
+    }
+
+    /// Name of the Keychain item currently providing the effective key.
+    var activeAPIKeyKeychainService: String? {
+        guard Defaults[apiKeyKey].trim().isEmpty else { return nil }
+        return keychainAPIKeySource?.serviceName
+    }
+
+    /// Returns a Keychain key without copying it into Easydict's settings.
+    var apiKeyFromKeychain: String? {
+        guard Defaults[apiKeyKey].trim().isEmpty else { return nil }
+        return keychainAPIKeySource?.key
+    }
+
+    /// Finds a generic-password item created for a shell API variable.
+    private var keychainAPIKeySource: (serviceName: String, key: String)? {
+        for serviceName in apiKeyKeychainServiceNames {
+            let query: [CFString: Any] = [
+                kSecClass: kSecClassGenericPassword,
+                kSecAttrAccount: NSUserName(),
+                kSecAttrService: serviceName,
+                kSecMatchLimit: kSecMatchLimitOne,
+                kSecReturnData: true,
+            ]
+            var result: CFTypeRef?
+            guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+                  let data = result as? Data,
+                  let key = String(data: data, encoding: .utf8)?.trim(),
+                  !key.isEmpty
+            else {
+                continue
+            }
+            return (serviceName, key)
+        }
+        return nil
+    }
+
+    /// Whether a defaults key represents the API key used by this service.
+    /// Polishing observes DeepSeek's key, so both storage identities are checked.
+    func isAPIKeyConfigurationKey(_ key: Defaults.Key<String>) -> Bool {
+        let environmentServiceKey = serivceConfigurationKey(
+            .apiKey,
+            serviceType: apiKeyEnvironmentServiceType,
+            defaultValue: ""
+        )
+        return key == apiKeyKey || key == environmentServiceKey
+    }
+
     func setupSubscribers() {
         logInfo("setup subscribers: \(self), windowType: \(windowType.rawValue)")
 

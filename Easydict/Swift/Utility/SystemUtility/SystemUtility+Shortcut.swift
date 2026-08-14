@@ -6,6 +6,7 @@
 //  Copyright © 2025 izual. All rights reserved.
 //
 
+import AppKit
 import Foundation
 import KeySender
 import SelectedTextKit
@@ -29,12 +30,52 @@ extension SystemUtility {
         _ text: String,
         restorePasteboard: Bool = true,
         restoreInterval: TimeInterval = minPasteboardInterval
-    ) async {
-        await pasteboardManager.pasteText(
-            text,
+    ) async
+        -> Bool {
+        let didPaste = await performTemporaryPaste(
+            text: text,
             restorePasteboard: restorePasteboard,
             restoreInterval: restoreInterval
-        )
-        await Task.sleep(seconds: minPasteboardInterval)
+        ) {
+            KeySender.paste()
+            return true
+        }
+        return didPaste
+    }
+
+    /// Runs a paste action without logging the copied text and restores even an
+    /// originally empty pasteboard.
+    @MainActor
+    func performTemporaryPaste(
+        text: String,
+        restorePasteboard: Bool,
+        restoreInterval: TimeInterval,
+        action: () async -> Bool
+    ) async
+        -> Bool {
+        guard !text.isEmpty else { return false }
+
+        let pasteboard = NSPasteboard.general
+        let savedItems = restorePasteboard ? pasteboard.backupItems() : nil
+        pasteboard.clearContents()
+        guard pasteboard.setString(text, forType: .string) else {
+            restorePasteboardItems(savedItems)
+            return false
+        }
+
+        let result = await action()
+        await Task.sleep(seconds: restoreInterval)
+        restorePasteboardItems(savedItems)
+        return result
+    }
+
+    @MainActor
+    private func restorePasteboardItems(_ items: [NSPasteboardItem]?) {
+        guard let items else { return }
+        if items.isEmpty {
+            NSPasteboard.general.clearContents()
+        } else {
+            NSPasteboard.general.restoreItems(items)
+        }
     }
 }

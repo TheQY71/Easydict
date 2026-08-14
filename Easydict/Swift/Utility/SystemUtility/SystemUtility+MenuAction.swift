@@ -28,7 +28,21 @@ extension SystemUtility {
         _ text: String,
         restorePasteboard: Bool = true,
         restoreInterval: TimeInterval = minPasteboardInterval
-    ) async {
-        await pasteboardManager.pasteText(text, restorePasteboard: restorePasteboard, restoreInterval: restoreInterval)
+    ) async
+        -> Bool {
+        await performTemporaryPaste(
+            text: text,
+            restorePasteboard: restorePasteboard,
+            restoreInterval: restoreInterval
+        ) {
+            do {
+                let pasteItem = try self.axManager.findEnabledMenuItem(.paste)
+                try pasteItem.performAction(kAXPressAction)
+                return true
+            } catch {
+                logError("Failed to paste via menu action: \(error.localizedDescription)")
+                return false
+            }
+        }
     }
 }

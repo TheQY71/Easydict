@@ -19,7 +19,6 @@ class SystemUtility: NSObject {
     @objc static let shared = SystemUtility()
 
     let axManager = AXManager.shared
-    let pasteboardManager = PasteboardManager.shared
     let selectedTextManager = SelectedTextManager.shared
 
     /// Bundle identifiers of apps that should use the "Paste menu item enabled" heuristic
@@ -70,35 +69,46 @@ class SystemUtility: NSObject {
     /// - Parameters:
     ///   - text: The text to insert
     ///   - strategies: The text strategies to use, in order of preference
+    /// - Returns: Whether insertion was confirmed, attempted, or unavailable.
     ///
     /// - Important: This function may be called many times in streaming mode,
     ///              so we pass the strategies array each time to avoid recomputation.
-    func insertText(_ text: String, using strategies: [TextStrategy]) async {
-        func insertTextInNonBrowser() async {
-            if strategies.contains(.menuAction) {
-                await insertTextByMenuAction(text)
-            } else if strategies.contains(.shortcut) {
-                await insertTextByShortcut(text)
-            } else if strategies.contains(.accessibility) {
-                if !insertTextByAX(text) {
-                    // The app accepted the Accessibility write without applying it,
-                    // which is normal for Electron-based apps. Pasting still works
-                    // there, and restores the pasteboard afterwards.
+    @discardableResult
+    func insertText(_ text: String, using strategies: [TextStrategy]) async
+        -> TextInsertionResult {
+        func insertTextInNonBrowser() async -> TextInsertionResult {
+            for strategy in strategies where strategy != .appleScript {
+                switch strategy {
+                case .accessibility:
+                    if insertTextByAX(text) {
+                        return .confirmed
+                    }
                     logInfo("AX insert had no effect, falling back to paste")
-                    await insertTextByShortcut(text)
+                case .menuAction:
+                    if await insertTextByMenuAction(text) {
+                        return .attempted
+                    }
+                case .shortcut:
+                    if await insertTextByShortcut(text) {
+                        return .attempted
+                    }
+                case .appleScript, .auto:
+                    break
                 }
             }
+            return .unavailable
         }
 
         if strategies.contains(.appleScript) {
             do {
                 try await insertTextByAppleScript(text)
+                return .confirmed
             } catch {
                 logError("Insert text by AppleScript failed: \(error), fallback to other methods")
-                await insertTextInNonBrowser()
+                return await insertTextInNonBrowser()
             }
         } else {
-            await insertTextInNonBrowser()
+            return await insertTextInNonBrowser()
         }
     }
 
@@ -110,7 +120,7 @@ class SystemUtility: NSObject {
     @objc
     func insertText(_ text: String) async {
         let strategies = await textStrategies()
-        await insertText(text, using: strategies)
+        _ = await insertText(text, using: strategies)
     }
 
     // MARK: - Text Strategies
@@ -139,15 +149,24 @@ class SystemUtility: NSObject {
 
     // MARK: - Focused Element Info
 
-    func focusedElementInfo(enableSelectAll: Bool = false) async -> FocusedElementInfo {
-        var elementInfo = await fetchFocusedElementInfo()
+    func focusedElementInfo(
+        enableSelectAll: Bool = false,
+        safeSelectionOnly: Bool = false
+    ) async
+        -> FocusedElementInfo {
+        var elementInfo = await fetchFocusedElementInfo(
+            safeSelectionOnly: safeSelectionOnly
+        )
         logInfo("Focused Element Info: \(elementInfo)")
 
         let selectedText = elementInfo.selectedText ?? ""
 
         // Only auto-select all text option when enabled and no selected text
         if enableSelectAll, selectedText.isEmpty {
-            elementInfo = await processAutoAllTextSelection(for: elementInfo)
+            elementInfo = await processAutoAllTextSelection(
+                for: elementInfo,
+                safeSelectionOnly: safeSelectionOnly
+            )
             logInfo("Element Info after Auto-Selection: \(elementInfo)")
         }
         return elementInfo
@@ -179,7 +198,10 @@ class SystemUtility: NSObject {
     /// Fetch comprehensive information from current focused element
     ///
     /// - Returns: FocusedElementInfo containing text, range, and selected text. Returns empty info when unavailable.
-    private func fetchFocusedElementInfo() async -> FocusedElementInfo {
+    private func fetchFocusedElementInfo(
+        safeSelectionOnly: Bool = false
+    ) async
+        -> FocusedElementInfo {
         do {
             guard let element = try frontmostAppElement?.focusedUIElement() else {
                 logInfo("No focused UI element found: \(String(describing: frontmostAppElement))")
@@ -189,13 +211,26 @@ class SystemUtility: NSObject {
             let roleValue = try? element.roleValue()
             let fullText: String? = try? element.value()
             let selectedRange: CFRange? = try? element.selectedTextRange()
-            let selectedText = await getSelectedText()
+            let processID = try? element.pid()
+            let selectedText: String?
+            if safeSelectionOnly {
+                selectedText = try? element.selectedText()
+            } else {
+                selectedText = await getSelectedText()
+            }
+
+            guard processID == NSWorkspace.shared.frontmostApplication?.processIdentifier else {
+                logInfo("Frontmost application changed while reading the focused element")
+                return .empty
+            }
 
             return FocusedElementInfo(
                 fullText: fullText,
                 selectedRange: selectedRange,
                 selectedText: selectedText,
-                roleValue: roleValue
+                roleValue: roleValue,
+                element: element,
+                processID: processID
             )
         } catch {
             logError("Error getting focused UI element info: \(error)")
@@ -207,7 +242,10 @@ class SystemUtility: NSObject {
     ///
     /// - Parameter elementInfo: Information about the current focused element
     /// - Returns: Updated FocusedElementInfo after processing auto-selection.
-    private func processAutoAllTextSelection(for elementInfo: FocusedElementInfo) async
+    private func processAutoAllTextSelection(
+        for elementInfo: FocusedElementInfo,
+        safeSelectionOnly: Bool
+    ) async
         -> FocusedElementInfo {
         guard elementInfo.isTextInputField else {
             return elementInfo
@@ -218,6 +256,15 @@ class SystemUtility: NSObject {
 
         logInfo("Auto-selected all text content in field")
 
-        return await fetchFocusedElementInfo()
+        return await fetchFocusedElementInfo(safeSelectionOnly: safeSelectionOnly)
     }
+}
+
+// MARK: - TextInsertionResult
+
+/// Confidence reported after attempting to insert text into another app.
+enum TextInsertionResult {
+    case confirmed
+    case attempted
+    case unavailable
 }

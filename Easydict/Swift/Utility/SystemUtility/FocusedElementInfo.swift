@@ -16,7 +16,9 @@ struct FocusedElementInfo: CustomStringConvertible {
         fullText: nil,
         selectedRange: nil,
         selectedText: nil,
-        roleValue: nil
+        roleValue: nil,
+        element: nil,
+        processID: nil
     )
 
     // MARK: - Role Helpers
@@ -53,6 +55,12 @@ struct FocusedElementInfo: CustomStringConvertible {
     /// Role value of the focused element, e.g. kAXTextFieldRole, AXTextAreaRole,
     let roleValue: String?
 
+    /// Accessibility element captured with the text snapshot.
+    let element: UIElement?
+
+    /// Process that owned the focused element when the snapshot was captured.
+    let processID: pid_t?
+
     /// Whether the focused element is a text input element
     var isTextInputField: Bool {
         guard let roleValue else {
@@ -81,16 +89,18 @@ struct FocusedElementInfo: CustomStringConvertible {
 
     var description: String {
         let rangeDesc = selectedRange.map { "(\($0.location), \($0.length))" } ?? ""
-        let selectedDesc = selectedText ?? "nil"
         let roleDesc = roleValue ?? "nil"
-        let fullTextDesc = fullText?.prefix200 ?? "nil"
+        let selectedLength = selectedText?.count ?? 0
+        let fullTextLength = fullText?.count ?? 0
 
         return """
         FocusedElementInfo(
-            text: \"\(fullTextDesc)\",
+            textLength: \(fullTextLength),
             selectedRange: \(rangeDesc),
-            selectedText: \(selectedDesc),
-            roleValue: \(roleDesc)
+            selectedTextLength: \(selectedLength),
+            roleValue: \(roleDesc),
+            hasElement: \(element != nil),
+            processID: \(processID.map(String.init) ?? "nil")
         )
         """
     }

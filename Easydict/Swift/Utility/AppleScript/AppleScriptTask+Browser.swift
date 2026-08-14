@@ -43,7 +43,7 @@ extension AppleScriptTask {
             let result = try await executeBrowserAction(.insertText(text), bundleID: bundleID) ?? ""
             return result.boolValue
         } catch {
-            logInfo("Failed to insert text in browser: \(error)")
+            logInfo("Failed to insert text in browser")
             return false
         }
     }
@@ -53,7 +53,7 @@ extension AppleScriptTask {
             let result = try await executeBrowserAction(.selectAllText, bundleID: bundleID) ?? ""
             return result.boolValue
         } catch {
-            logInfo("Failed to select all text in browser: \(error)")
+            logInfo("Failed to select all text in browser")
             return false
         }
     }
@@ -78,7 +78,7 @@ extension AppleScriptTask {
         }
 
         let result = try await runAppleScript(script, timeout: timeout ?? 5.0)
-        logInfo("\(logMessage): \(result ?? "")")
+        logInfo("\(logMessage) completed with \(result?.count ?? 0) characters")
         return result
     }
 
@@ -180,14 +180,14 @@ extension AppleScriptTask {
             return (script, 0.2, "Safari text field text")
 
         case let .insertText(text):
-            logInfo("Inserting text into Safari: \(text)")
+            logInfo("Inserting \(text.count) characters into Safari")
             let escapedText = escapeJavaScriptString(text)
             let script = """
             tell application id "\(bundleID)"
                 do JavaScript "document.execCommand('insertText', false, '\(escapedText)')" in document 1
             end tell
             """
-            logInfo("Safari insert text script: \(script)")
+            logInfo("Safari insert text script prepared")
             return (script, nil, "Safari insert text result")
 
         case .selectAllText:

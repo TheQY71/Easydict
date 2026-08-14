@@ -133,7 +133,7 @@ private class ServiceValidationViewModel: ObservableObject {
     init(service: QueryService, observing keys: [Defaults.Key<String>]) {
         self.service = service
         self.name = service.name()
-        self.isValidateBtnDisabled = keys.contains(where: { Defaults[$0].isEmpty })
+        self.isValidateBtnDisabled = Self.hasEmptyInput(keys, service: service)
 
         // check secret key empty input
         Defaults.publisher(keys: keys)
@@ -141,7 +141,7 @@ private class ServiceValidationViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self else { return }
-                let hasEmptyInput = keys.contains(where: { Defaults[$0].isEmpty })
+                let hasEmptyInput = Self.hasEmptyInput(keys, service: service)
                 guard isValidateBtnDisabled != hasEmptyInput else { return }
                 self.isValidateBtnDisabled = hasEmptyInput
             }
@@ -186,6 +186,22 @@ private class ServiceValidationViewModel: ObservableObject {
         NotificationCenter.default
             .publisher(for: .serviceHasUpdated)
             .eraseToAnyPublisher()
+    }
+
+    private static func hasEmptyInput(
+        _ keys: [Defaults.Key<String>],
+        service: QueryService
+    )
+        -> Bool {
+        keys.contains { key in
+            guard Defaults[key].trim().isEmpty else { return false }
+            guard let streamService = service as? StreamService,
+                  streamService.isAPIKeyConfigurationKey(key)
+            else {
+                return true
+            }
+            return streamService.apiKey.trim().isEmpty
+        }
     }
 
     private func didReceive(_ notification: Notification) {

@@ -141,6 +141,7 @@
 		03715A282E6D24F60067259C /* SystemUtility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03BBC8152E62062100CFC582 /* SystemUtility.swift */; };
 		03715A292E6D25170067259C /* ActionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03A00D872E616D56001A4D82 /* ActionManager.swift */; };
 		03715A2A2E6D253E0067259C /* FocusedElementInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03A91F142E63E1FB00896B17 /* FocusedElementInfo.swift */; };
+		A13B00012F63000100C0D3E5 /* PolishingStatusHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13F00012F63000100C0D3E5 /* PolishingStatusHUD.swift */; };
 		03779F0E2BB256A7008D3C42 /* OpenAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03779F0B2BB256A7008D3C42 /* OpenAIService.swift */; };
 		03779F0F2BB256A7008D3C42 /* StreamService+Prompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03779F0C2BB256A7008D3C42 /* StreamService+Prompt.swift */; };
 		03779F132BB256B5008D3C42 /* APIKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03779F102BB256B5008D3C42 /* APIKey.swift */; };
@@ -642,6 +643,7 @@
 		039D119729D5E26300C93F46 /* EZAudioUtils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EZAudioUtils.h; sourceTree = "<group>"; };
 		039D119829D5E26300C93F46 /* EZAudioUtils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = EZAudioUtils.m; sourceTree = "<group>"; };
 		03A00D872E616D56001A4D82 /* ActionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionManager.swift; sourceTree = "<group>"; };
+		A13F00012F63000100C0D3E5 /* PolishingStatusHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PolishingStatusHUD.swift; sourceTree = "<group>"; };
 		03A3E1542BEBDB2000E7E210 /* Throttler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Throttler.swift; sourceTree = "<group>"; };
 		03A5E0912D3C020200FF7D95 /* StreamService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamService.swift; sourceTree = "<group>"; };
 		03A8846B2F12000100D5C0DE /* Task+Timeout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Task+Timeout.swift"; sourceTree = "<group>"; };
@@ -1688,6 +1690,7 @@
 			isa = PBXGroup;
 			children = (
 				03A00D872E616D56001A4D82 /* ActionManager.swift */,
+				A13F00012F63000100C0D3E5 /* PolishingStatusHUD.swift */,
 			);
 			path = ActionManager;
 			sourceTree = "<group>";
@@ -3546,6 +3549,7 @@
 				031760F42E07FB2800CE8FD7 /* AppleLanguageDetector.swift in Sources */,
 				EAE3D3502B62E9DE001EE3E3 /* GlobalContext.swift in Sources */,
 				03715A292E6D25170067259C /* ActionManager.swift in Sources */,
+				A13B00012F63000100C0D3E5 /* PolishingStatusHUD.swift in Sources */,
 				EA9943F02B5354C400EE7B97 /* ShowWindowPositionExtensions.swift in Sources */,
 				CB8C43002C441B74004EC86F /* BaiduApiResponse.swift in Sources */,
 				0340D3992C91D4B6004C9910 /* AppleScriptTask+System.swift in Sources */,
